@@ -15,7 +15,7 @@ import { enqueueBackfill } from "./boss.js";
 const FRESH_MIN = 30; // re-use existing data if backfilled within this window
 
 export type SnapshotResult =
-  | { ok: true; snapshot: PlayerSnapshot }
+  | { ok: true; snapshot: PlayerSnapshot; backfilling: boolean }
   | { ok: false; code: "NOT_FOUND" | "RIOT_UNAVAILABLE" | "INVALID"; message: string };
 
 /**
@@ -43,7 +43,10 @@ export async function getOrBuildSnapshot(riotId: string, region: string): Promis
     [puuid, String(FRESH_MIN)],
   );
 
-  if (!fresh?.recent) {
+  // We only kicked off a full background backfill if the account wasn't recently
+  // refreshed — that's the only time the "still loading more" note is true.
+  const backfilling = !fresh?.recent;
+  if (backfilling) {
     try {
       await refreshAccountRanks(puuid, region);
       await backfillMember({ puuid, platform: region, recentOnlyPerQueue: 20, storeRaw: true });
@@ -56,5 +59,5 @@ export async function getOrBuildSnapshot(riotId: string, region: string): Promis
 
   const snapshot = await getPlayerSnapshot(getPool(), puuid);
   if (!snapshot) return { ok: false, code: "NOT_FOUND", message: "No data available yet." };
-  return { ok: true, snapshot };
+  return { ok: true, snapshot, backfilling };
 }

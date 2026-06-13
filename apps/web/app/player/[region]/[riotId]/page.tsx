@@ -113,9 +113,11 @@ export default async function PlayerSnapshot({
         )}
       </Card>
 
-      <p className="text-center text-xs text-ink-faint">
-        Full 90-day history is backfilling in the background — refresh in a minute for more.
-      </p>
+      {result.backfilling && (
+        <p className="text-center text-xs text-ink-faint">
+          Pulling your full 90-day history in the background. Refresh in a minute for more.
+        </p>
+      )}
     </div>
   );
 }
