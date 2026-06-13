@@ -79,7 +79,10 @@ export async function setSessionCookie(sessionId: string): Promise<void> {
   jar.set(COOKIE, `${sessionId}.${sign(sessionId)}`, {
     httpOnly: true,
     sameSite: "lax",
-    secure: env().NODE_ENV === "production",
+    // Secure only when actually served over HTTPS. Basing this on NODE_ENV broke
+    // login under `next start` on http://localhost (browsers drop Secure cookies
+    // over plain http), even though curl ignored the rule.
+    secure: env().NEXT_PUBLIC_BASE_URL.startsWith("https"),
     path: "/",
     maxAge: SESSION_TTL_DAYS * 86400,
   });
