@@ -6,6 +6,7 @@ import { getCrewBySlug } from "@/lib/crews";
 import { getCrewDashboard } from "@crewstats/stats";
 import { QueueTabs, parseQueueSlug } from "@/components/QueueTabs";
 import { CopyButton } from "@/components/CopyButton";
+import { RefreshButton } from "@/components/RefreshButton";
 import { ProfileIcon } from "@/components/Icons";
 import { PlayerLink } from "@/components/links";
 import { Panel, PanelHeader } from "@/components/ui";
@@ -65,6 +66,7 @@ export default async function CrewDashboardPage({
               </PlayerLink>
             ))}
           </div>
+          <RefreshButton slug={slug} />
           <CopyButton text={inviteUrl} />
           <Link href={`${basePath}/settings`} className="grid h-9 w-9 place-items-center rounded border border-line bg-surface text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink" aria-label="Crew settings">
             <Settings className="h-4 w-4" />

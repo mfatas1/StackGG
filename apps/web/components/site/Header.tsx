@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 function Wordmark() {
   return (
@@ -17,7 +18,26 @@ function Wordmark() {
 
 export function SiteHeader() {
   const pathname = usePathname() ?? "/";
+  const router = useRouter();
   const isLanding = pathname === "/";
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => active && setEmail(d.email ?? null))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [pathname]);
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setEmail(null);
+    router.refresh();
+  }
 
   return (
     <header
@@ -38,10 +58,19 @@ export function SiteHeader() {
           </Link>
           <Link
             href="/legal"
-            className="rounded px-3 py-1.5 font-medium text-ink-dim transition-colors hover:text-ink"
+            className="hidden rounded px-3 py-1.5 font-medium text-ink-dim transition-colors hover:text-ink sm:inline-block"
           >
             Legal
           </Link>
+          {email && (
+            <button
+              onClick={logout}
+              className="rounded px-3 py-1.5 font-medium text-ink-faint transition-colors hover:text-ink"
+              title={`Signed in as ${email}`}
+            >
+              Sign out
+            </button>
+          )}
         </nav>
       </div>
     </header>
