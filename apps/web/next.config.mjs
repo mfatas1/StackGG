@@ -18,6 +18,14 @@ const nextConfig = {
   images: {
     remotePatterns: [{ protocol: "https", hostname: "ddragon.leagueoflegends.com" }],
   },
+  webpack: (config) => {
+    // Resolve ESM-style ".js" import specifiers in our TS workspace packages.
+    config.resolve.extensionAlias = {
+      ".js": [".ts", ".tsx", ".js"],
+      ".mjs": [".mts", ".mjs"],
+    };
+    return config;
+  },
 };
 
 export default nextConfig;
