@@ -1,6 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ArrowRight, Mail, Check } from "lucide-react";
+import { Button, Input, Select } from "./ui";
 
 export const REGIONS = [
   { value: "euw1", label: "EUW" },
@@ -17,43 +19,49 @@ export const REGIONS = [
 
 function RegionSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <select className="input" value={value} onChange={(e) => onChange(e.target.value)}>
+    <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Region">
       {REGIONS.map((r) => (
         <option key={r.value} value={r.value}>
           {r.label}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
 
-export function RiotIdForm({ defaultRegion = "euw1" }: { defaultRegion?: string }) {
+export function RiotIdForm({ size = "md" }: { size?: "md" | "lg" }) {
   const router = useRouter();
   const [riotId, setRiotId] = useState("");
-  const [region, setRegion] = useState(defaultRegion);
+  const [region, setRegion] = useState("euw1");
   const [loading, setLoading] = useState(false);
+  const valid = /.+#.+/.test(riotId);
 
   return (
     <form
       className="flex flex-col gap-2 sm:flex-row"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!riotId.includes("#")) return;
+        if (!valid) return;
         setLoading(true);
         router.push(`/player/${region}/${encodeURIComponent(riotId.trim())}`);
       }}
     >
-      <input
-        className="input flex-1"
-        placeholder="Riot ID — e.g. StackMember1#5418"
-        value={riotId}
-        onChange={(e) => setRiotId(e.target.value)}
-        autoFocus
-      />
+      <div className="relative flex-1">
+        <Input
+          className={size === "lg" ? "h-13 pl-9 text-base sm:h-14" : "pl-9"}
+          placeholder="Riot ID — e.g. StackMember1#5418"
+          value={riotId}
+          onChange={(e) => setRiotId(e.target.value)}
+          aria-label="Riot ID"
+          autoFocus
+        />
+        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-ink-faint">#</span>
+      </div>
       <RegionSelect value={region} onChange={setRegion} />
-      <button className="btn-accent" disabled={loading || !riotId.includes("#")}>
-        {loading ? "Loading…" : "See your stats"}
-      </button>
+      <Button size={size === "lg" ? "lg" : "md"} loading={loading} disabled={!valid}>
+        See your stats
+        {!loading && <ArrowRight className="h-4 w-4" />}
+      </Button>
     </form>
   );
 }
@@ -84,35 +92,48 @@ export function SignInForm({ redirectTo = "/" }: { redirectTo?: string }) {
 
   if (state === "sent") {
     return (
-      <div className="space-y-2 text-sm">
-        <p className="text-ink">Check your email for a sign-in link.</p>
-        {devLink && (
-          <p className="text-ink-faint">
-            Dev mode — link:{" "}
-            <a className="text-accent underline" href={devLink}>
-              click to sign in
-            </a>
-          </p>
-        )}
+      <div className="flex items-start gap-3 rounded border border-win/30 bg-win/10 p-4 text-sm">
+        <Check className="mt-0.5 h-5 w-5 shrink-0 text-win" />
+        <div className="space-y-1">
+          <p className="font-medium text-ink">Check your email for a sign-in link.</p>
+          {devLink && (
+            <p className="text-ink-dim">
+              Dev mode:{" "}
+              <a className="font-medium text-primary underline underline-offset-2" href={devLink}>
+                click to sign in
+              </a>
+            </p>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
     <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submit}>
-      <input
-        className="input flex-1"
-        type="email"
-        placeholder="you@example.com"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-      />
-      <button className="btn-accent" disabled={state === "sending"}>
-        {state === "sending" ? "Sending…" : "Email me a link"}
-      </button>
+      <div className="relative flex-1">
+        <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+        <Input
+          className="pl-9"
+          type="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+      </div>
+      <Button loading={state === "sending"}>Email me a link</Button>
       {state === "error" && <span className="self-center text-sm text-loss">{err}</span>}
     </form>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-medium text-ink-dim">{label}</span>
+      {children}
+    </label>
   );
 }
 
@@ -143,23 +164,20 @@ export function CreateCrewForm() {
   }
 
   return (
-    <form className="space-y-3" onSubmit={submit}>
-      <div>
-        <label className="mb-1 block text-xs text-ink-dim">Crew name</label>
-        <input className="input w-full" placeholder="The Bot Lane Diff" value={name} onChange={(e) => setName(e.target.value)} required />
-      </div>
-      <div>
-        <label className="mb-1 block text-xs text-ink-dim">Your Riot ID</label>
-        <input className="input w-full" placeholder="Name#TAG" value={riotId} onChange={(e) => setRiotId(e.target.value)} required />
-      </div>
-      <div>
-        <label className="mb-1 block text-xs text-ink-dim">Region</label>
+    <form className="space-y-4" onSubmit={submit}>
+      <Field label="Crew name">
+        <Input placeholder="The Bot Lane Diff" value={name} onChange={(e) => setName(e.target.value)} required />
+      </Field>
+      <Field label="Your Riot ID">
+        <Input placeholder="Name#TAG" value={riotId} onChange={(e) => setRiotId(e.target.value)} required />
+      </Field>
+      <Field label="Region">
         <RegionSelect value={region} onChange={setRegion} />
-      </div>
+      </Field>
       {state === "error" && <p className="text-sm text-loss">{err}</p>}
-      <button className="btn-accent w-full" disabled={state === "loading"}>
-        {state === "loading" ? "Creating & backfilling…" : "Create crew"}
-      </button>
+      <Button className="w-full" loading={state === "loading"}>
+        {state === "loading" ? "Creating & pulling games…" : "Create crew"}
+      </Button>
     </form>
   );
 }
@@ -191,23 +209,20 @@ export function JoinForm({ inviteCode }: { inviteCode: string }) {
   }
 
   return (
-    <form className="space-y-3" onSubmit={submit}>
-      <div>
-        <label className="mb-1 block text-xs text-ink-dim">Your Riot ID</label>
-        <input className="input w-full" placeholder="Name#TAG" value={riotId} onChange={(e) => setRiotId(e.target.value)} required />
-      </div>
-      <div>
-        <label className="mb-1 block text-xs text-ink-dim">Region</label>
+    <form className="space-y-4" onSubmit={submit}>
+      <Field label="Your Riot ID">
+        <Input placeholder="Name#TAG" value={riotId} onChange={(e) => setRiotId(e.target.value)} required />
+      </Field>
+      <Field label="Region">
         <RegionSelect value={region} onChange={setRegion} />
-      </div>
-      <div>
-        <label className="mb-1 block text-xs text-ink-dim">Email (optional)</label>
-        <input className="input w-full" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-      </div>
+      </Field>
+      <Field label="Email (optional)">
+        <Input type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </Field>
       {state === "error" && <p className="text-sm text-loss">{err}</p>}
-      <button className="btn-accent w-full" disabled={state === "loading"}>
-        {state === "loading" ? "Joining & backfilling…" : "Join crew"}
-      </button>
+      <Button className="w-full" loading={state === "loading"}>
+        {state === "loading" ? "Joining & pulling games…" : "Join crew"}
+      </Button>
     </form>
   );
 }

@@ -2,50 +2,88 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
-}
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
 
-html,
-body {
-  background-color: #0a0c10;
-  color: #e6e9ef;
-}
+  html {
+    background-color: oklch(0.155 0.01 60);
+    -webkit-text-size-adjust: 100%;
+  }
 
-body {
-  font-feature-settings: "tnum" 1, "cv01" 1;
-  -webkit-font-smoothing: antialiased;
-}
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    font-feature-settings: "cv01" 1, "ss03" 1;
+    text-rendering: optimizeLegibility;
+  }
 
-/* Thin scrollbars for the data-dense tables */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #232936 transparent;
+  /* Tabular figures everywhere stats live */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  ::selection {
+    background: oklch(0.73 0.17 45 / 0.3);
+    color: oklch(0.965 0.008 80);
+  }
+
+  :focus-visible {
+    outline: 2px solid oklch(0.73 0.17 45);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Warm thin scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.32 0.014 60) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: oklch(0.32 0.014 60);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
 }
 
 @layer components {
-  .card {
-    @apply rounded-xl border border-line bg-bg-card;
+  /* Skeleton shimmer for loading states */
+  .skeleton {
+    @apply relative overflow-hidden rounded bg-surface-2;
   }
-  .stat-num {
-    @apply font-mono tabular-nums;
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      oklch(0.32 0.014 60 / 0.5),
+      transparent
+    );
+    animation: shimmer 1.4s infinite;
   }
-  .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors;
-  }
-  .btn-accent {
-    @apply btn bg-accent text-bg hover:bg-accent/90;
-  }
-  .btn-ghost {
-    @apply btn border border-line bg-bg-raised text-ink hover:bg-bg-hover;
-  }
-  .input {
-    @apply rounded-lg border border-line bg-bg-raised px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none;
-  }
-  .tab {
-    @apply rounded-md px-3 py-1.5 text-sm font-medium text-ink-dim hover:text-ink transition-colors;
-  }
-  .tab-active {
-    @apply bg-bg-hover text-ink;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }
