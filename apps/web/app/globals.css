@@ -6,51 +6,41 @@
   :root {
     color-scheme: dark;
   }
-
   html {
-    background-color: oklch(0.155 0.01 60);
+    background-color: #010a13;
     -webkit-text-size-adjust: 100%;
   }
-
   body {
     @apply bg-bg text-ink font-sans antialiased;
-    font-feature-settings: "cv01" 1, "ss03" 1;
     text-rendering: optimizeLegibility;
   }
-
-  /* Tabular figures everywhere stats live */
   .tnum {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
   }
-
   ::selection {
-    background: oklch(0.73 0.17 45 / 0.3);
-    color: oklch(0.965 0.008 80);
+    background: rgba(200, 155, 60, 0.32);
+    color: #f0e6d2;
   }
-
   :focus-visible {
-    outline: 2px solid oklch(0.73 0.17 45);
+    outline: 2px solid #c89b3c;
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: 2px;
   }
-
-  /* Warm thin scrollbars */
   * {
     scrollbar-width: thin;
-    scrollbar-color: oklch(0.32 0.014 60) transparent;
+    scrollbar-color: #1e3247 transparent;
   }
   *::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
   *::-webkit-scrollbar-thumb {
-    background: oklch(0.32 0.014 60);
+    background: #1e3247;
     border-radius: 999px;
     border: 3px solid transparent;
     background-clip: content-box;
   }
-
   h1, h2, h3 {
     text-wrap: balance;
   }
@@ -60,19 +50,43 @@
 }
 
 @layer components {
-  /* Skeleton shimmer for loading states */
+  /* Hextech corner brackets on key frames */
+  .hex-corners {
+    position: relative;
+  }
+  .hex-corners::before,
+  .hex-corners::after {
+    content: "";
+    position: absolute;
+    width: 11px;
+    height: 11px;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .hex-corners::before {
+    top: 0;
+    left: 0;
+    border-top: 2px solid #c89b3c;
+    border-left: 2px solid #c89b3c;
+  }
+  .hex-corners::after {
+    bottom: 0;
+    right: 0;
+    border-bottom: 2px solid #c89b3c;
+    border-right: 2px solid #c89b3c;
+  }
+  /* Thin gold gradient divider */
+  .gold-rule {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(200, 155, 60, 0.6), transparent);
+  }
   .skeleton {
     @apply relative overflow-hidden rounded bg-surface-2;
   }
   .skeleton::after {
     content: "";
     @apply absolute inset-0 -translate-x-full;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      oklch(0.32 0.014 60 / 0.5),
-      transparent
-    );
+    background: linear-gradient(90deg, transparent, rgba(30, 50, 71, 0.6), transparent);
     animation: shimmer 1.4s infinite;
   }
 }

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Cinzel, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/site/Header";
 import { SiteFooter } from "@/components/site/Footer";
 
-const display = Bricolage_Grotesque({
+const display = Cinzel({
   subsets: ["latin"],
   weight: ["600", "700", "800"],
   variable: "--font-display",

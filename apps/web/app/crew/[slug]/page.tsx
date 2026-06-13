@@ -8,6 +8,7 @@ import { QueueTabs, parseQueueSlug } from "@/components/QueueTabs";
 import { CopyButton } from "@/components/CopyButton";
 import { RefreshButton } from "@/components/RefreshButton";
 import { ProfileIcon } from "@/components/Icons";
+import { RiftBackdrop } from "@/components/league/Rift";
 import { PlayerLink } from "@/components/links";
 import { Panel, PanelHeader } from "@/components/ui";
 import {
@@ -49,14 +50,15 @@ export default async function CrewDashboardPage({
         </div>
       )}
 
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+      <header className="relative flex flex-wrap items-end justify-between gap-4 overflow-hidden rounded-lg">
+        <RiftBackdrop opacity={0.1} position="center" />
+        <div className="relative">
           <h1 className="font-display text-3xl font-bold tracking-tight">{d.crew.name}</h1>
           <p className="mt-1 text-sm text-ink-dim">
             {d.crew.memberCount} members · <span className="tnum">{d.cards.totalSharedGames}</span> shared games tracked
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="relative flex items-center gap-3">
           <div className="flex -space-x-2">
             {d.members.slice(0, 8).map((m) => (
               <PlayerLink key={m.puuid} riotId={m.riotId} tag={m.tag} region={m.region} crewSlug={slug}>

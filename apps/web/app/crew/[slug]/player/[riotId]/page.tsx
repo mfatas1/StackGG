@@ -9,7 +9,9 @@ import { Panel, PanelHeader, SampleSize, Empty } from "@/components/ui";
 import { MatchHistory } from "@/components/MatchHistory";
 import { QueueTabs, parseQueueSlug } from "@/components/QueueTabs";
 import { PlayerLink } from "@/components/links";
-import { pct, rankString, placementSuffix } from "@/lib/format";
+import { RankCrest } from "@/components/league/RankCrest";
+import { ChampSplashBanner } from "@/components/league/Splash";
+import { pct, placementSuffix } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,7 @@ export default async function MemberPage({
   const basePath = `/crew/${slug}/player/${encodeURIComponent(riotId)}`;
   const crewPuuids = await getCrewMemberPuuids(getPool(), crew.id);
   const history = await getMatchHistory(getPool(), account.puuid, { slug: queue, championId, limit: 20, crewPuuids });
+  const topChamp = [...page.modes.flatMap((m) => m.topChampions)].sort((a, b) => b.games - a.games)[0]?.championName;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
@@ -45,19 +48,27 @@ export default async function MemberPage({
         <ArrowLeft className="h-4 w-4" /> {page.crew.name}
       </Link>
 
-      <header className="flex flex-wrap items-center gap-4">
-        <ProfileIcon id={page.identity.profileIcon} name={page.identity.riotId} size={60} />
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
-            {page.identity.riotId}
-            <span className="text-ink-faint">#{page.identity.tag}</span>
-          </h1>
-          <div className="mt-1 flex gap-3 text-sm text-ink-dim">
-            <span>Solo: {rankString(page.rankSolo)}</span>
-            <span>Flex: {rankString(page.rankFlex)}</span>
+      <ChampSplashBanner championName={topChamp} className="hex-corners">
+        <header className="flex flex-wrap items-center gap-4 p-5">
+          <ProfileIcon id={page.identity.profileIcon} name={page.identity.riotId} size={64} />
+          <div className="min-w-0">
+            <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
+              {page.identity.riotId}
+              <span className="text-ink-faint">#{page.identity.tag}</span>
+            </h1>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="text-2xs uppercase tracking-wide text-ink-faint">Solo</span>
+                <RankCrest rank={page.rankSolo} size={20} />
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="text-2xs uppercase tracking-wide text-ink-faint">Flex</span>
+                <RankCrest rank={page.rankFlex} size={20} />
+              </span>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      </ChampSplashBanner>
 
       <Panel className="p-4">
         <PanelHeader title="Where they rank in the crew" />

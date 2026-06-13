@@ -8,7 +8,9 @@ import { Panel, PanelHeader, FormPills, SampleSize, Empty, Button } from "@/comp
 import { MatchHistory } from "@/components/MatchHistory";
 import { QueueTabs, parseQueueSlug } from "@/components/QueueTabs";
 import { PlayerLink } from "@/components/links";
-import { pct, rankString, timeAgo, placementSuffix } from "@/lib/format";
+import { RankCrest } from "@/components/league/RankCrest";
+import { ChampSplashBanner } from "@/components/league/Splash";
+import { pct, timeAgo, placementSuffix } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -42,28 +44,36 @@ export default async function PlayerSnapshot({
   const basePath = `/player/${region}/${encodeURIComponent(riotId)}`;
   const history = await getMatchHistory(getPool(), s.identity.puuid, { slug: queue, championId, limit: 20 });
   const champName = championId ? history[0]?.championName : undefined;
+  const topChamp = [...s.modes.flatMap((m) => m.topChampions)].sort((a, b) => b.games - a.games)[0]?.championName;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
-      <header className="flex flex-wrap items-center gap-4">
-        <ProfileIcon id={s.identity.profileIcon} name={s.identity.riotId} size={60} />
-        <div className="flex-1">
-          <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
-            {s.identity.riotId}
-            <span className="text-ink-faint">#{s.identity.tag}</span>
-          </h1>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-dim">
-            <span>Solo: {rankString(s.rankSolo)}</span>
-            <span className="text-line-strong">|</span>
-            <span>Flex: {rankString(s.rankFlex)}</span>
-            <span className="text-2xs text-ink-faint">updated {timeAgo(s.lastUpdated)}</span>
+      <ChampSplashBanner championName={topChamp} className="hex-corners">
+        <header className="flex flex-wrap items-center gap-4 p-5">
+          <ProfileIcon id={s.identity.profileIcon} name={s.identity.riotId} size={64} />
+          <div className="min-w-0 flex-1">
+            <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
+              {s.identity.riotId}
+              <span className="text-ink-faint">#{s.identity.tag}</span>
+            </h1>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="text-2xs uppercase tracking-wide text-ink-faint">Solo</span>
+                <RankCrest rank={s.rankSolo} size={20} />
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="text-2xs uppercase tracking-wide text-ink-faint">Flex</span>
+                <RankCrest rank={s.rankFlex} size={20} />
+              </span>
+              <span className="text-2xs text-ink-faint">updated {timeAgo(s.lastUpdated)}</span>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-2xs text-ink-faint">Recent form</span>
-          <FormPills form={s.recentForm.slice(0, 5)} />
-        </div>
-      </header>
+          <div className="flex items-center gap-2">
+            <span className="text-2xs text-ink-faint">Form</span>
+            <FormPills form={s.recentForm.slice(0, 5)} />
+          </div>
+        </header>
+      </ChampSplashBanner>
 
       {/* Mode summary */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -11,7 +11,7 @@ const DEMO = [
 /** Static, demo-data preview of the crew standings (landing only). */
 export function MiniStandings() {
   return (
-    <div className="w-full rounded-lg border border-line bg-surface-2 shadow-pop">
+    <div className="hex-corners w-full rounded-lg border border-line bg-surface-2 shadow-pop">
       <div className="flex items-center justify-between border-b border-line/70 px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-win" />
