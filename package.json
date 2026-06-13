@@ -1,0 +1,33 @@
+{
+  "name": "crewstats",
+  "private": true,
+  "version": "0.1.0",
+  "description": "op.gg tells you how you play. CrewStats tells you how your group plays together.",
+  "workspaces": [
+    "packages/shared",
+    "packages/stats",
+    "apps/worker",
+    "apps/web"
+  ],
+  "scripts": {
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:reset": "tsx scripts/migrate.ts --reset",
+    "db:seed-fixtures": "tsx scripts/seed-fixtures.ts",
+    "dev:web": "npm run dev --workspace apps/web",
+    "dev:worker": "npm run dev --workspace apps/worker",
+    "build": "npm run build --workspace packages/shared && npm run build --workspace packages/stats && npm run build --workspace apps/web",
+    "typecheck": "tsc -b --pretty packages/shared packages/stats apps/worker && npm run typecheck --workspace apps/web",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "dotenv": "^16.4.7",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

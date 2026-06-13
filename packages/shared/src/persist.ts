@@ -1,0 +1,111 @@
+import type pg from "pg";
+import type { Queryable } from "./db.js";
+import { isArena } from "./riot/regions.js";
+import type { MatchDto, ParticipantDto } from "./riot/types.js";
+
+/**
+ * Pure mapping + persistence of a match into the schema (PLAN §8). Shared by the
+ * ingestion worker and the stats test-seed so both produce identical rows.
+ *
+ * Dedup (PLAN hard rule #5): each match is inserted once (ON CONFLICT DO NOTHING);
+ * match_participants rows are written only for tracked puuids present in the match.
+ */
+
+export interface ParticipantRowInput {
+  match_id: string;
+  puuid: string;
+  team_id: number;
+  subteam_id: number | null;
+  placement: number | null;
+  champion_id: number;
+  champion_name: string;
+  role: string | null;
+  win: boolean;
+  kills: number;
+  deaths: number;
+  assists: number;
+  gold: number;
+  damage: number;
+  cs: number;
+  vision_score: number;
+}
+
+export function mapParticipant(matchId: string, queueId: number, p: ParticipantDto): ParticipantRowInput {
+  const arena = isArena(queueId);
+  return {
+    match_id: matchId,
+    puuid: p.puuid,
+    team_id: p.teamId,
+    subteam_id: arena ? p.playerSubteamId ?? null : null,
+    placement: arena ? p.subteamPlacement ?? p.placement ?? null : null,
+    champion_id: p.championId,
+    champion_name: p.championName,
+    role: p.teamPosition || null,
+    win: p.win,
+    kills: p.kills,
+    deaths: p.deaths,
+    assists: p.assists,
+    gold: p.goldEarned,
+    damage: p.totalDamageDealtToChampions,
+    cs: p.totalMinionsKilled + (p.neutralMinionsKilled ?? 0),
+    vision_score: p.visionScore ?? 0,
+  };
+}
+
+export interface PersistResult {
+  matchInserted: boolean;
+  participantsWritten: number;
+}
+
+/**
+ * Insert a match and the participant rows for any tracked puuid in it.
+ * @param trackedPuuids if null, writes rows for ALL participants (used only for
+ *   single-match fixture seeding); normally pass the crew/player puuid set.
+ */
+export async function persistMatch(
+  client: Queryable,
+  match: MatchDto,
+  trackedPuuids: Set<string> | null,
+  opts: { storeRaw?: boolean } = {},
+): Promise<PersistResult> {
+  const matchId = match.metadata.matchId;
+  const info = match.info;
+  const startMs = info.gameStartTimestamp ?? info.gameCreation;
+  const patch = info.gameVersion ?? null;
+  const region = info.platformId ?? "UNKNOWN";
+
+  const ins = await client.query(
+    `INSERT INTO matches (match_id, queue_id, game_start, game_duration, patch, region, raw)
+     VALUES ($1, $2, to_timestamp($3::double precision / 1000.0), $4, $5, $6, $7)
+     ON CONFLICT (match_id) DO NOTHING`,
+    [
+      matchId,
+      info.queueId,
+      startMs,
+      info.gameDuration,
+      patch,
+      region,
+      opts.storeRaw ? JSON.stringify(match) : null,
+    ] as never[],
+  );
+  const matchInserted = (ins as pg.QueryResult).rowCount === 1;
+
+  let participantsWritten = 0;
+  for (const p of info.participants) {
+    if (trackedPuuids && !trackedPuuids.has(p.puuid)) continue;
+    const r = mapParticipant(matchId, info.queueId, p);
+    const res = await client.query(
+      `INSERT INTO match_participants
+         (match_id, puuid, team_id, subteam_id, placement, champion_id, champion_name,
+          role, win, kills, deaths, assists, gold, damage, cs, vision_score)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       ON CONFLICT (match_id, puuid) DO NOTHING`,
+      [
+        r.match_id, r.puuid, r.team_id, r.subteam_id, r.placement, r.champion_id, r.champion_name,
+        r.role, r.win, r.kills, r.deaths, r.assists, r.gold, r.damage, r.cs, r.vision_score,
+      ] as never[],
+    );
+    participantsWritten += (res as pg.QueryResult).rowCount ?? 0;
+  }
+  return { matchInserted, participantsWritten };
+}
