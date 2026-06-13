@@ -101,6 +101,12 @@ export async function createCrew(input: {
     return c!;
   });
 
+  // Link the owner's Riot account to their user so it shows under "my crews".
+  await getPool().query(`UPDATE riot_accounts SET claimed_by_user_id = $2 WHERE puuid = $1`, [
+    account.puuid,
+    input.userId,
+  ]);
+
   await quickBackfill(account.puuid, input.region, new Set([account.puuid]));
   await enqueueBackfill({ crewId: crew.id, puuid: account.puuid, platform: input.region, days: 90 });
   await enqueueWeekly({ crewId: crew.id });
@@ -127,6 +133,14 @@ export async function joinCrew(input: {
     [crew.id, account.puuid],
   );
 
+  // Link the joiner's Riot account to their user (if signed in) for "my crews".
+  if (input.userId) {
+    await getPool().query(`UPDATE riot_accounts SET claimed_by_user_id = $2 WHERE puuid = $1`, [
+      account.puuid,
+      input.userId,
+    ]);
+  }
+
   const tracked = new Set(await memberPuuids(crew.id));
   tracked.add(account.puuid);
   if (!already) await quickBackfill(account.puuid, input.region, tracked);
@@ -139,6 +153,34 @@ export async function joinCrew(input: {
 
 export async function getCrewBySlug(slug: string): Promise<CrewRow | null> {
   return queryOne<CrewRow>(`SELECT * FROM crews WHERE slug = $1`, [slug]);
+}
+
+export interface UserCrew {
+  slug: string;
+  name: string;
+  memberCount: number;
+  isOwner: boolean;
+}
+
+/** Crews a user owns or is a member of (via a claimed Riot account). */
+export async function getUserCrews(userId: string): Promise<UserCrew[]> {
+  const rows = await query<{ slug: string; name: string; member_count: string; is_owner: boolean }>(
+    `SELECT DISTINCT c.slug, c.name, c.created_at,
+       (SELECT count(*) FROM crew_members cm2 WHERE cm2.crew_id = c.id)::text AS member_count,
+       (c.owner_user_id = $1) AS is_owner
+     FROM crews c
+     LEFT JOIN crew_members cm ON cm.crew_id = c.id
+     LEFT JOIN riot_accounts ra ON ra.puuid = cm.puuid AND ra.claimed_by_user_id = $1
+     WHERE c.owner_user_id = $1 OR ra.claimed_by_user_id = $1
+     ORDER BY c.created_at DESC`,
+    [userId],
+  );
+  return rows.map((r) => ({
+    slug: r.slug,
+    name: r.name,
+    memberCount: Number(r.member_count),
+    isOwner: r.is_owner,
+  }));
 }
 
 export async function regenerateInviteCode(crewId: string): Promise<string> {

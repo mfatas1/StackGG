@@ -50,12 +50,21 @@ export function SiteHeader() {
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Wordmark />
         <nav className="flex items-center gap-1 text-sm">
-          <Link
-            href="/crew/new"
-            className="rounded px-3 py-1.5 font-medium text-ink-dim transition-colors hover:text-ink"
-          >
-            Create a crew
-          </Link>
+          {email ? (
+            <Link
+              href="/account"
+              className="rounded px-3 py-1.5 font-medium text-ink-dim transition-colors hover:text-ink"
+            >
+              My crews
+            </Link>
+          ) : (
+            <Link
+              href="/crew/new"
+              className="rounded px-3 py-1.5 font-medium text-ink-dim transition-colors hover:text-ink"
+            >
+              Create a crew
+            </Link>
+          )}
           <Link
             href="/legal"
             className="hidden rounded px-3 py-1.5 font-medium text-ink-dim transition-colors hover:text-ink sm:inline-block"
