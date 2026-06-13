@@ -7,7 +7,7 @@ export function ChampIcon({ name, size = 32 }: { name: string; size?: number }) 
   if (err) {
     return (
       <span
-        className="inline-flex items-center justify-center rounded bg-bg-hover text-[10px] text-ink-dim"
+        className="inline-flex items-center justify-center rounded-sm bg-surface-3 text-[10px] font-medium text-ink-dim"
         style={{ width: size, height: size }}
         title={name}
       >
@@ -35,7 +35,7 @@ export function ProfileIcon({ id, name, size = 40 }: { id: number | null; name: 
   if (!url || err) {
     return (
       <span
-        className="inline-flex items-center justify-center rounded-full bg-bg-hover text-xs font-semibold text-ink-dim"
+        className="inline-flex items-center justify-center rounded-full bg-surface-3 text-xs font-semibold text-ink-dim"
         style={{ width: size, height: size }}
         title={name}
       >

@@ -1,43 +1,41 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Bricolage_Grotesque, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { SiteHeader } from "@/components/site/Header";
+import { SiteFooter } from "@/components/site/Footer";
+
+const display = Bricolage_Grotesque({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-display",
+  display: "swap",
+});
+const sans = Hanken_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-sans",
+  display: "swap",
+});
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["500", "600"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "StackGG — how your group plays together",
   description:
-    "op.gg tells you how you play. StackGG tells you how your group plays together. Cross-mode leaderboards, duo synergy, and head-to-head for your friend group.",
+    "op.gg tells you how you play. StackGG tells you how your group plays together. A shared crew page for your League squad: cross-mode leaderboard, duo synergy, and head-to-head.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen flex flex-col">
-        <header className="border-b border-line">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-            <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-              <span className="inline-block h-5 w-5 rounded-sm bg-accent" />
-              <span>Stack<span className="text-accent">GG</span></span>
-            </Link>
-            <nav className="flex items-center gap-4 text-sm text-ink-dim">
-              <Link href="/" className="hover:text-ink">
-                Home
-              </Link>
-              <Link href="/legal" className="hover:text-ink">
-                Legal
-              </Link>
-            </nav>
-          </div>
-        </header>
-
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
-
-        <footer className="border-t border-line">
-          <div className="mx-auto max-w-6xl px-4 py-6 text-xs leading-relaxed text-ink-faint">
-            StackGG isn&apos;t endorsed by Riot Games and doesn&apos;t reflect the views or opinions of
-            Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot
-            Games and League of Legends are trademarks or registered trademarks of Riot Games, Inc.
-          </div>
-        </footer>
+    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
+      <body className="flex min-h-screen flex-col">
+        <SiteHeader />
+        <main className="flex-1">{children}</main>
+        <SiteFooter />
       </body>
     </html>
   );
