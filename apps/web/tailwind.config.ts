@@ -1,47 +1,57 @@
 import type { Config } from "tailwindcss";
 
 /**
- * StackGG design tokens (see DESIGN.md). Warm-dark, playful-precise.
- * Colors are literal OKLCH with the Tailwind `<alpha-value>` placeholder so
- * opacity modifiers (e.g. bg-primary/15) work. Theme is fixed dark — no toggle.
+ * StackGG — Hextech theme (League client visual language). Obsidian-navy base,
+ * Hextech gold as the brand/action color, Hextech teal as accent + victory,
+ * red for defeat. Fixed dark theme. Hex values track the League client palette.
  */
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        bg: "oklch(0.155 0.010 60 / <alpha-value>)",
+        bg: "#010A13", // obsidian
         surface: {
-          DEFAULT: "oklch(0.200 0.012 60 / <alpha-value>)",
-          2: "oklch(0.235 0.014 60 / <alpha-value>)",
-          3: "oklch(0.275 0.016 60 / <alpha-value>)",
+          DEFAULT: "#0A1622", // panel base
+          2: "#0F1F30", // raised panel
+          3: "#16293E", // hover / selected
         },
         line: {
-          DEFAULT: "oklch(0.320 0.014 60 / <alpha-value>)",
-          strong: "oklch(0.420 0.016 60 / <alpha-value>)",
+          DEFAULT: "#1E3247", // navy hairline
+          strong: "#3C5A73",
         },
         ink: {
-          DEFAULT: "oklch(0.965 0.008 80 / <alpha-value>)",
-          dim: "oklch(0.800 0.012 80 / <alpha-value>)",
-          faint: "oklch(0.640 0.012 80 / <alpha-value>)",
+          DEFAULT: "#F0E6D2", // hextech parchment
+          dim: "#A09B8C", // muted grey-gold
+          faint: "#7A8A99", // navy-grey meta
         },
+        // Brand / action = Hextech gold
         primary: {
-          DEFAULT: "oklch(0.730 0.170 45 / <alpha-value>)",
-          strong: "oklch(0.665 0.180 42 / <alpha-value>)",
-          on: "oklch(0.205 0.030 45 / <alpha-value>)",
+          DEFAULT: "#C89B3C", // hextech gold
+          strong: "#E3BD6A", // brighter gold for hover/active
+          on: "#06101C", // near-black text on gold
         },
-        win: "oklch(0.800 0.165 150 / <alpha-value>)",
-        loss: "oklch(0.660 0.190 25 / <alpha-value>)",
-        gold: "oklch(0.815 0.130 85 / <alpha-value>)",
-        info: "oklch(0.720 0.130 280 / <alpha-value>)",
+        gold: {
+          DEFAULT: "#C89B3C",
+          light: "#F0D9A0",
+          dark: "#785A28",
+        },
+        // Hextech teal accent + victory
+        hex: {
+          DEFAULT: "#0AC8B9",
+          dim: "#0397AB",
+          deep: "#005A82",
+        },
+        win: "#0AC8B9", // League marks victory in teal/blue
+        loss: "#E84057", // defeat red
+        info: "#0397AB",
       },
       fontFamily: {
-        display: ["var(--font-display)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "Georgia", "serif"],
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       fontSize: {
-        // product fixed rem scale (~1.2 ratio)
         "2xs": ["0.75rem", { lineHeight: "1rem" }],
         xs: ["0.8125rem", { lineHeight: "1.125rem" }],
         sm: ["0.875rem", { lineHeight: "1.25rem" }],
@@ -53,14 +63,15 @@ const config: Config = {
         "4xl": ["2.25rem", { lineHeight: "2.4rem" }],
       },
       borderRadius: {
-        sm: "8px",
-        DEFAULT: "12px",
-        lg: "16px",
+        sm: "3px",
+        DEFAULT: "4px",
+        lg: "6px",
         pill: "999px",
       },
       boxShadow: {
-        pop: "0 12px 32px oklch(0 0 0 / 0.45)",
-        glow: "0 0 0 1px oklch(0.730 0.170 45 / 0.35), 0 8px 28px oklch(0.730 0.170 45 / 0.18)",
+        pop: "0 14px 40px rgba(0,0,0,0.6)",
+        glow: "0 0 0 1px rgba(200,155,60,0.5), 0 6px 24px rgba(200,155,60,0.18)",
+        "glow-hex": "0 0 0 1px rgba(10,200,185,0.45), 0 6px 24px rgba(10,200,185,0.16)",
       },
       transitionTimingFunction: {
         "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",
@@ -75,9 +86,7 @@ const config: Config = {
           "0%": { opacity: "0", transform: "scale(0.96)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
-        shimmer: {
-          "100%": { transform: "translateX(100%)" },
-        },
+        shimmer: { "100%": { transform: "translateX(100%)" } },
       },
       animation: {
         "fade-up": "fade-up 0.5s cubic-bezier(0.16,1,0.3,1) both",

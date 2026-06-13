@@ -1,12 +1,50 @@
 import type { RankInfo } from "@crewstats/shared";
 
-export const DDRAGON_VERSION = process.env.NEXT_PUBLIC_DDRAGON_VERSION ?? "15.13.1";
+export const DDRAGON_VERSION = process.env.NEXT_PUBLIC_DDRAGON_VERSION ?? "16.12.1";
+
+const CHAMP_FIXUPS: Record<string, string> = { FiddleSticks: "Fiddlesticks" };
 
 export function champIcon(championName: string): string {
-  // DDragon uses PascalCase keys; match-v5 championName already matches for most.
-  const fixups: Record<string, string> = { FiddleSticks: "Fiddlesticks" };
-  const name = fixups[championName] ?? championName;
+  const name = CHAMP_FIXUPS[championName] ?? championName;
   return `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${name}.png`;
+}
+
+/** Wide champion splash art (1215x717) — no version in the path. */
+export function champSplash(championName: string): string {
+  const name = CHAMP_FIXUPS[championName] ?? championName;
+  return `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${name}_0.jpg`;
+}
+
+/** Summoner's Rift minimap art. */
+export const RIFT_MAP_URL = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/map/map11.png`;
+
+const CDRAGON = "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default";
+
+/** Ranked tier mini-crest svg (iron…challenger). Returns null when unranked. */
+export function tierCrest(tier?: string | null): string | null {
+  if (!tier) return null;
+  const t = tier.toLowerCase();
+  const known = ["iron", "bronze", "silver", "gold", "platinum", "emerald", "diamond", "master", "grandmaster", "challenger"];
+  if (!known.includes(t)) return null;
+  return `${CDRAGON}/images/ranked-mini-crests/${t}.svg`;
+}
+
+const ROLE_MAP: Record<string, string> = {
+  TOP: "top",
+  JUNGLE: "jungle",
+  MIDDLE: "middle",
+  MID: "middle",
+  BOTTOM: "bottom",
+  BOT: "bottom",
+  UTILITY: "utility",
+  SUPPORT: "utility",
+};
+
+/** Position/role icon svg. Returns null for unknown roles. */
+export function roleIcon(role?: string | null): string | null {
+  if (!role) return null;
+  const r = ROLE_MAP[role.toUpperCase()];
+  return r ? `${CDRAGON}/svg/position-${r}.svg` : null;
 }
 
 export function profileIcon(id: number | null): string | null {

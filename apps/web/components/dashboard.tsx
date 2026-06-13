@@ -9,9 +9,11 @@ import type {
 } from "@crewstats/shared";
 import { QUEUE_LABEL } from "@crewstats/shared";
 import { ChampIcon, ProfileIcon } from "./Icons";
-import { Bar, FormPills, SampleSize, Empty, tierTone } from "./ui";
+import { Bar, FormPills, SampleSize, Empty } from "./ui";
 import { PlayerLink } from "./links";
-import { pct, signedPp, rankString, kdaString, timeAgo, gameDuration, placementSuffix } from "@/lib/format";
+import { RankCrest } from "./league/RankCrest";
+import { RoleIcon } from "./league/RoleIcon";
+import { pct, signedPp, kdaString, timeAgo, gameDuration, placementSuffix } from "@/lib/format";
 
 export function MetricCards({ d }: { d: CrewDashboard }) {
   const c = d.cards;
@@ -117,8 +119,8 @@ export function Leaderboard({ entries, slug, crewSlug }: { entries: LeaderboardE
                   )}
                 </PlayerLink>
               </td>
-              <td className={`px-3 py-2.5 text-xs ${tierTone((slug === "flex" ? e.rankFlex : e.rankSolo)?.tier)}`}>
-                {rankString(slug === "flex" ? e.rankFlex : e.rankSolo)}
+              <td className="px-3 py-2.5">
+                <RankCrest rank={slug === "flex" ? e.rankFlex : e.rankSolo} size={20} />
               </td>
               <td className="px-3 py-2.5">
                 {isArena ? (
@@ -231,7 +233,11 @@ export function FlexRolesPanel({ roles, crewSlug }: { roles: FlexRoleStat[]; cre
               <td className="px-3 py-2">
                 <PlayerLink riotId={r.identity.riotId} tag={r.identity.tag} region={r.identity.region} crewSlug={crewSlug} className="font-medium" />
               </td>
-              <td className="px-3 py-2 text-ink-dim">{r.role}</td>
+              <td className="px-3 py-2">
+                <span className="inline-flex items-center gap-1.5 text-ink-dim">
+                  <RoleIcon role={r.role} size={16} /> {r.role}
+                </span>
+              </td>
               <td className="px-3 py-2 font-mono tnum">
                 {pct(r.winrate)} <SampleSize games={r.games} />
               </td>

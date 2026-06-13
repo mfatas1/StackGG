@@ -4,6 +4,7 @@ import { RiotIdForm } from "@/components/forms";
 import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { Reveal } from "@/components/landing/Reveal";
 import { MiniStandings } from "@/components/landing/MiniStandings";
+import { RiftBackdrop } from "@/components/league/Rift";
 
 export const metadata = { title: "StackGG — how your group plays together" };
 
@@ -14,11 +15,12 @@ export default function Landing() {
 
       {/* Hero */}
       <section className="relative overflow-hidden">
-        {/* warm coral glow */}
+        <RiftBackdrop opacity={0.18} position="center top" className="-z-0" />
+        {/* hextech glow */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-40 left-1/2 h-[42rem] w-[42rem] -translate-x-1/2 rounded-full opacity-50 blur-[120px]"
-          style={{ background: "radial-gradient(closest-side, oklch(0.73 0.17 45 / 0.55), transparent)" }}
+          className="pointer-events-none absolute -top-48 left-1/2 h-[44rem] w-[44rem] -translate-x-1/2 rounded-full opacity-40 blur-[130px]"
+          style={{ background: "radial-gradient(closest-side, rgba(10,200,185,0.4), rgba(200,155,60,0.15), transparent)" }}
         />
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pb-16 pt-28 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:pb-24 lg:pt-36">
           <div>
@@ -125,7 +127,7 @@ export default function Landing() {
             <div
               aria-hidden
               className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-48 w-[36rem] rounded-full opacity-40 blur-[90px]"
-              style={{ background: "radial-gradient(closest-side, oklch(0.73 0.17 45 / 0.5), transparent)" }}
+              style={{ background: "radial-gradient(closest-side, rgba(200,155,60,0.45), transparent)" }}
             />
             <h2 className="relative font-display text-3xl font-bold tracking-tight sm:text-4xl">
               Start the argument.

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { MatchHistoryItem } from "@crewstats/shared";
 import { QUEUE_LABEL } from "@crewstats/shared";
 import { ChampIcon } from "./Icons";
+import { RoleIcon } from "./league/RoleIcon";
 import { Empty } from "./ui";
 import { kdaString, timeAgo, gameDuration, placementSuffix } from "@/lib/format";
 
@@ -53,7 +54,11 @@ export function MatchHistory({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="truncate text-sm font-medium">{m.championName}</span>
-                {m.role && <span className="text-2xs text-ink-faint">{m.role}</span>}
+                {m.role && (
+                  <span className="inline-flex items-center gap-1 text-2xs text-ink-faint">
+                    <RoleIcon role={m.role} size={13} /> {m.role}
+                  </span>
+                )}
               </div>
               <div className="mt-0.5 flex items-center gap-2 text-2xs text-ink-faint">
                 <Link href={`${basePath}?q=${m.queueSlug}`} className="hover:text-primary" title="Filter by queue">
