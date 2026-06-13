@@ -4,6 +4,8 @@ export * from "./contracts.js";
 export * from "./queue.js";
 export * from "./util.js";
 export * from "./persist.js";
+export * from "./accounts.js";
+export * from "./ingest.js";
 export * from "./riot/regions.js";
 export * from "./riot/types.js";
 export * from "./riot/client.js";
