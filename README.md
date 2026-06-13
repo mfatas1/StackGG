@@ -1,6 +1,6 @@
-# CrewStats
+# StackGG
 
-*Working name. op.gg tells you how you play. CrewStats tells you how your group plays together.*
+*Working name: StackGG. op.gg tells you how you play. StackGG tells you how your group plays together.*
 
 ## The idea
 
@@ -11,7 +11,7 @@ League of Legends is mostly played in friend groups that live on Discord — but
 - What's our 5-stack's winrate when X junglas instead of Y?
 - What's our head-to-head record when we end up in the same Arena lobby?
 
-CrewStats is a website where any group of friends creates a shared **crew page** that answers exactly these. You sign up, create a crew, drop an invite link in your Discord, and the site continuously ingests everyone's match history from the Riot API — computing stats that only exist *across* the group.
+StackGG is a website where any group of friends creates a shared **crew page** that answers exactly these. You sign up, create a crew, drop an invite link in your Discord, and the site continuously ingests everyone's match history from the Riot API — computing stats that only exist *across* the group.
 
 ## Why this space is genuinely empty
 
@@ -80,7 +80,7 @@ Tests: `npm test`. Typecheck: `npm run typecheck`.
 - **Deploy**: `Dockerfile` + `docker-compose.yml` are provided. Actual cloud
   deployment (Railway/Fly) needs your hosting account and a managed Postgres.
 
-## Getting started (current state: M0)
+## Spike (M0)
 
 ```bash
 # 1. Get a development key at https://developer.riotgames.com
@@ -93,4 +93,4 @@ Requires Node 18+. Never commit your key; use `.env` once the app scaffold exist
 
 ## Legal
 
-CrewStats isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games and League of Legends are trademarks or registered trademarks of Riot Games, Inc.
+StackGG isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games and League of Legends are trademarks or registered trademarks of Riot Games, Inc.
