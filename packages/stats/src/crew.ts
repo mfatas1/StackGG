@@ -11,7 +11,7 @@ import type {
 import { QUEUES } from "@crewstats/shared";
 import { winrate, round, queueIdsForSlug } from "./util.js";
 import { getIdentity, getRecentForm } from "./modes.js";
-import { getDuoSynergies, getHeadToHead, getFlexRoles } from "./synergy.js";
+import { getDuoSynergies, getFlexRoles } from "./synergy.js";
 import { getActivity } from "./activity.js";
 
 export async function getCrewMemberPuuids(client: Queryable, crewId: string): Promise<string[]> {
@@ -241,11 +241,10 @@ export async function getCrewDashboard(
     if (id) members.push(id);
   }
 
-  const [leaderboard, cards, synergies, headToHead, flexRoles, activity] = await Promise.all([
+  const [leaderboard, cards, synergies, flexRoles, activity] = await Promise.all([
     getLeaderboard(client, puuids, slug),
     getCrewCards(client, puuids),
     getDuoSynergies(client, puuids, slug, MIN_SYNERGY_GAMES),
-    getHeadToHead(client, puuids, slug),
     getFlexRoles(client, puuids),
     getActivity(client, puuids, slug, 20),
   ]);
@@ -256,7 +255,6 @@ export async function getCrewDashboard(
     cards,
     leaderboard,
     synergies,
-    headToHead,
     flexRoles,
     activity,
     queue: slug,

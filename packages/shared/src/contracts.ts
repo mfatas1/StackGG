@@ -167,15 +167,6 @@ export const DuoSynergySchema = z.object({
 });
 export type DuoSynergy = z.infer<typeof DuoSynergySchema>;
 
-export const HeadToHeadSchema = z.object({
-  a: PlayerIdentitySchema,
-  b: PlayerIdentitySchema,
-  games: z.number(), // games on opposing sides (or different Arena subteams)
-  aWins: z.number(), // games where a's side beat b's side (or better arena placement)
-  bWins: z.number(),
-});
-export type HeadToHead = z.infer<typeof HeadToHeadSchema>;
-
 export const FlexRoleStatSchema = z.object({
   identity: PlayerIdentitySchema,
   role: z.string(), // TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY
@@ -184,6 +175,26 @@ export const FlexRoleStatSchema = z.object({
   winrate: z.number().nullable(),
 });
 export type FlexRoleStat = z.infer<typeof FlexRoleStatSchema>;
+
+// A crew superlative / record (bragging rights).
+export const AwardSchema = z.object({
+  key: z.string(),
+  label: z.string(), // "Most kills in a game"
+  value: z.string(), // "21"
+  holder: PlayerIdentitySchema,
+  sub: z.string(), // "Draven · 21/4/8 · Ranked Flex"
+});
+export type Award = z.infer<typeof AwardSchema>;
+
+// A member's primary role, for placing them on the Summoner's Rift map.
+export const RolePlacementSchema = z.object({
+  identity: PlayerIdentitySchema,
+  role: z.string(), // TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY
+  games: z.number(),
+  wins: z.number(),
+  winrate: z.number().nullable(),
+});
+export type RolePlacement = z.infer<typeof RolePlacementSchema>;
 
 export const ActivityMemberSchema = z.object({
   puuid: z.string(),
@@ -254,7 +265,6 @@ export const CrewDashboardSchema = z.object({
   cards: CrewCardsSchema,
   leaderboard: z.array(LeaderboardEntrySchema),
   synergies: z.array(DuoSynergySchema),
-  headToHead: z.array(HeadToHeadSchema),
   flexRoles: z.array(FlexRoleStatSchema),
   activity: z.array(ActivityItemSchema),
   queue: QueueSlugSchema,

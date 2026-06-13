@@ -3,19 +3,20 @@ import { notFound } from "next/navigation";
 import { Settings } from "lucide-react";
 import { getPool, env } from "@crewstats/shared";
 import { getCrewBySlug } from "@/lib/crews";
-import { getCrewDashboard } from "@crewstats/stats";
+import { getCrewDashboard, getCrewAwards, getCrewRolePlacements, getCrewMemberPuuids } from "@crewstats/stats";
 import { QueueTabs, parseQueueSlug } from "@/components/QueueTabs";
 import { CopyButton } from "@/components/CopyButton";
 import { RefreshButton } from "@/components/RefreshButton";
 import { ProfileIcon } from "@/components/Icons";
 import { RiftBackdrop } from "@/components/league/Rift";
+import { CrewRift } from "@/components/league/CrewRift";
+import { CrewAwards } from "@/components/CrewAwards";
 import { PlayerLink } from "@/components/links";
 import { Panel, PanelHeader } from "@/components/ui";
 import {
   MetricCards,
   Leaderboard,
   SynergyPanel,
-  HeadToHeadPanel,
   FlexRolesPanel,
   ActivityFeed,
 } from "@/components/dashboard";
@@ -37,6 +38,11 @@ export default async function CrewDashboardPage({
   if (!crew) notFound();
   const d = await getCrewDashboard(getPool(), crew.id, queue);
   if (!d) notFound();
+  const puuids = await getCrewMemberPuuids(getPool(), crew.id);
+  const [awards, placements] = await Promise.all([
+    getCrewAwards(getPool(), puuids),
+    getCrewRolePlacements(getPool(), puuids),
+  ]);
 
   const inviteUrl = `${env().NEXT_PUBLIC_BASE_URL}/join/${crew.invite_code}`;
   const basePath = `/crew/${slug}`;
@@ -78,6 +84,21 @@ export default async function CrewDashboardPage({
 
       <MetricCards d={d} />
 
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel className="p-4">
+          <PanelHeader title="Crew on the Rift" />
+          <div className="px-1 pt-4">
+            <CrewRift placements={placements} crewSlug={slug} />
+          </div>
+        </Panel>
+        <Panel className="p-4">
+          <PanelHeader title="Records" />
+          <div className="px-1 pt-4">
+            <CrewAwards awards={awards} crewSlug={slug} />
+          </div>
+        </Panel>
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-xl font-bold">Leaderboard</h2>
         <QueueTabs basePath={basePath} active={queue} />
@@ -86,20 +107,12 @@ export default async function CrewDashboardPage({
         <Leaderboard entries={d.leaderboard} slug={queue} crewSlug={slug} />
       </Panel>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Panel className="p-4">
-          <PanelHeader title="Duo synergy" />
-          <div className="px-1 pt-3">
-            <SynergyPanel synergies={d.synergies} minGames={d.minSynergyGames} crewSlug={slug} />
-          </div>
-        </Panel>
-        <Panel className="p-4">
-          <PanelHeader title="Head-to-head" />
-          <div className="px-1 pt-3">
-            <HeadToHeadPanel records={d.headToHead} crewSlug={slug} />
-          </div>
-        </Panel>
-      </div>
+      <Panel className="p-4">
+        <PanelHeader title="Duo synergy" />
+        <div className="px-1 pt-3">
+          <SynergyPanel synergies={d.synergies} minGames={d.minSynergyGames} crewSlug={slug} />
+        </div>
+      </Panel>
 
       {(queue === "all" || queue === "flex") && d.flexRoles.length > 0 && (
         <Panel className="p-4">
