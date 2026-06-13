@@ -3,7 +3,6 @@ import type {
   CrewDashboard,
   LeaderboardEntry,
   DuoSynergy,
-  HeadToHead,
   FlexRoleStat,
   ActivityItem,
 } from "@crewstats/shared";
@@ -175,40 +174,6 @@ export function SynergyPanel({ synergies, minGames, crewSlug }: { synergies: Duo
           <div className="mt-1.5 text-2xs text-ink-faint">
             apart: {s.a.riotId} {pct(s.aWinrateApart)} · {s.b.riotId} {pct(s.bWinrateApart)}
           </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-export function HeadToHeadPanel({ records, crewSlug }: { records: HeadToHead[]; crewSlug: string }) {
-  if (!records.length)
-    return <Empty>No head-to-head games yet (crewmates on opposing sides or different Arena subteams).</Empty>;
-  return (
-    <ul className="space-y-2">
-      {records.map((h) => (
-        <li
-          key={h.a.puuid + h.b.puuid}
-          className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded border border-line bg-surface-2/60 px-3 py-2.5 text-sm"
-        >
-          <PlayerLink
-            riotId={h.a.riotId}
-            tag={h.a.tag}
-            region={h.a.region}
-            crewSlug={crewSlug}
-            className={`truncate text-right ${h.aWins >= h.bWins ? "font-semibold text-win" : "text-ink-dim"}`}
-          />
-          <span className="font-mono tnum">
-            {h.aWins}<span className="px-1 text-ink-faint">–</span>{h.bWins}
-            <span className="ml-1.5 text-2xs text-ink-faint">{h.games}g</span>
-          </span>
-          <PlayerLink
-            riotId={h.b.riotId}
-            tag={h.b.tag}
-            region={h.b.region}
-            crewSlug={crewSlug}
-            className={`truncate ${h.bWins > h.aWins ? "font-semibold text-win" : "text-ink-dim"}`}
-          />
         </li>
       ))}
     </ul>

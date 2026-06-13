@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closePool } from "@crewstats/shared";
-import { getDuoSynergies, getHeadToHead, getFlexRoles } from "../src/synergy.js";
+import { getDuoSynergies, getFlexRoles } from "../src/synergy.js";
 import { getLeaderboard } from "../src/crew.js";
 import { resetDb, insertAccount, insertMatch } from "./helpers.js";
 
@@ -75,24 +75,6 @@ describe("duo synergy", () => {
     const ab = duos.find((d) => d.a.puuid === A && d.b.puuid === B)!;
     expect(ab.games).toBe(1);
     expect(ab.wins).toBe(1);
-  });
-});
-
-describe("head-to-head", () => {
-  it("A vs C in flex: 4 games, A 3 - 1 C", async () => {
-    const h2h = await getHeadToHead(pool(crew), crew, "flex");
-    const ac = h2h.find((h) => h.a.puuid === A && h.b.puuid === C)!;
-    expect(ac.games).toBe(4);
-    expect(ac.aWins).toBe(3);
-    expect(ac.bWins).toBe(1);
-  });
-
-  it("arena h2h decided by placement (A 1st beats C 4th)", async () => {
-    const h2h = await getHeadToHead(pool(crew), crew, "arena");
-    const ac = h2h.find((h) => h.a.puuid === A && h.b.puuid === C)!;
-    expect(ac.games).toBe(1);
-    expect(ac.aWins).toBe(1);
-    expect(ac.bWins).toBe(0);
   });
 });
 

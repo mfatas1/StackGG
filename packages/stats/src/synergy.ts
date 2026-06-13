@@ -1,5 +1,5 @@
 import { query, type Queryable } from "@crewstats/shared";
-import type { DuoSynergy, HeadToHead, FlexRoleStat, QueueSlug, PlayerIdentity } from "@crewstats/shared";
+import type { DuoSynergy, FlexRoleStat, QueueSlug, PlayerIdentity } from "@crewstats/shared";
 import { QUEUES } from "@crewstats/shared";
 import { winrate, queueIdsForSlug } from "./util.js";
 import { getIdentity } from "./modes.js";
@@ -92,55 +92,6 @@ export async function getDuoSynergies(
     });
   }
   out.sort((x, y) => (y.winrate ?? 0) - (x.winrate ?? 0) || y.games - x.games);
-  return out;
-}
-
-/**
- * Head-to-head: crew members in the SAME match on OPPOSITE sides (different
- * Arena subteams). For SR the winner is the side that won; for Arena the better
- * (lower) subteam placement wins.
- */
-export async function getHeadToHead(
-  client: Queryable,
-  puuids: string[],
-  slug: QueueSlug,
-): Promise<HeadToHead[]> {
-  if (puuids.length < 2) return [];
-  const queueIds = queueIdsForSlug(slug);
-  const rows = await query<{ pa: string; pb: string; games: string; a_wins: string; b_wins: string }>(
-    `SELECT a.puuid AS pa, b.puuid AS pb,
-       count(*)::text AS games,
-       count(*) FILTER (
-         WHERE (m.queue_id = ${QUEUES.ARENA} AND a.placement < b.placement)
-            OR (m.queue_id <> ${QUEUES.ARENA} AND a.win)
-       )::text AS a_wins,
-       count(*) FILTER (
-         WHERE (m.queue_id = ${QUEUES.ARENA} AND b.placement < a.placement)
-            OR (m.queue_id <> ${QUEUES.ARENA} AND b.win)
-       )::text AS b_wins
-     FROM match_participants a
-     JOIN matches m ON m.match_id = a.match_id
-     JOIN match_participants b
-       ON b.match_id = a.match_id AND a.puuid < b.puuid
-      AND CASE WHEN m.queue_id = ${QUEUES.ARENA}
-               THEN a.subteam_id <> b.subteam_id
-               ELSE a.team_id <> b.team_id END
-     WHERE a.puuid = ANY($1) AND b.puuid = ANY($1)
-       ${queueIds ? "AND m.queue_id = ANY($2::int[])" : ""}
-     GROUP BY a.puuid, b.puuid
-     HAVING count(*) > 0`,
-    queueIds ? [puuids, queueIds] : [puuids],
-    client,
-  );
-  const ids = await identityMap(client, puuids);
-  const out: HeadToHead[] = [];
-  for (const r of rows) {
-    const a = ids.get(r.pa);
-    const b = ids.get(r.pb);
-    if (!a || !b) continue;
-    out.push({ a, b, games: Number(r.games), aWins: Number(r.a_wins), bWins: Number(r.b_wins) });
-  }
-  out.sort((x, y) => y.games - x.games);
   return out;
 }
 

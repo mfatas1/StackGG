@@ -6,4 +6,5 @@ export * from "./history.js";
 export * from "./synergy.js";
 export * from "./activity.js";
 export * from "./crew.js";
+export * from "./awards.js";
 export * from "./memberpage.js";
