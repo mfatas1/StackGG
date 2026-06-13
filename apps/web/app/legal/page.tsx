@@ -2,7 +2,7 @@ export const metadata = { title: "Legal — StackGG" };
 
 export default function Legal() {
   return (
-    <div className="prose-invert mx-auto max-w-2xl space-y-4 text-sm leading-relaxed text-ink-dim">
+    <div className="mx-auto max-w-2xl space-y-4 px-4 py-12 text-sm leading-relaxed text-ink-dim sm:px-6">
       <h1 className="text-2xl font-bold text-ink">Legal &amp; Riot policy</h1>
       <p>
         StackGG isn&apos;t endorsed by Riot Games and doesn&apos;t reflect the views or opinions of

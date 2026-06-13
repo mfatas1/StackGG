@@ -1,6 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { RefreshCw, Trash2 } from "lucide-react";
+import { Button, Input, Panel } from "./ui";
 import { CopyButton } from "./CopyButton";
 
 interface Member {
@@ -28,6 +30,7 @@ export function SettingsPanel({
   const [name, setName] = useState(initialName);
   const [inviteUrl, setInviteUrl] = useState(initialInviteUrl);
   const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
 
   if (!isOwner) {
     return <p className="text-sm text-ink-dim">Only the crew owner can change these settings.</p>;
@@ -35,11 +38,13 @@ export function SettingsPanel({
 
   async function rename(e: React.FormEvent) {
     e.preventDefault();
+    setBusy(true);
     const res = await fetch(`/api/crews/${slug}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name }),
     });
+    setBusy(false);
     setMsg(res.ok ? "Saved." : "Rename failed.");
     if (res.ok) router.refresh();
   }
@@ -65,35 +70,37 @@ export function SettingsPanel({
   }
 
   return (
-    <div className="space-y-6">
-      {msg && <p className="rounded bg-bg-hover px-3 py-2 text-sm text-accent">{msg}</p>}
+    <div className="space-y-5">
+      {msg && <p className="rounded border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">{msg}</p>}
 
-      <form onSubmit={rename} className="card space-y-2 p-4">
-        <label className="block text-xs text-ink-dim">Crew name</label>
-        <div className="flex gap-2">
-          <input className="input flex-1" value={name} onChange={(e) => setName(e.target.value)} />
-          <button className="btn-accent">Save</button>
-        </div>
-      </form>
+      <Panel className="p-4">
+        <form onSubmit={rename} className="space-y-2">
+          <label className="block text-xs font-medium text-ink-dim">Crew name</label>
+          <div className="flex gap-2">
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+            <Button loading={busy}>Save</Button>
+          </div>
+        </form>
+      </Panel>
 
-      <div className="card space-y-2 p-4">
-        <label className="block text-xs text-ink-dim">Invite link</label>
+      <Panel className="p-4">
+        <label className="mb-2 block text-xs font-medium text-ink-dim">Invite link</label>
         <div className="flex flex-wrap items-center gap-2">
-          <code className="flex-1 truncate rounded bg-bg-raised px-2 py-1 text-xs text-ink-dim">{inviteUrl}</code>
+          <code className="min-w-0 flex-1 truncate rounded bg-surface px-2.5 py-2 font-mono text-xs text-ink-dim">{inviteUrl}</code>
           <CopyButton text={inviteUrl} label="Copy" />
-          <button className="btn-ghost" onClick={regenerate} type="button">
-            Regenerate
-          </button>
+          <Button variant="ghost" size="sm" onClick={regenerate} type="button">
+            <RefreshCw className="h-4 w-4" /> Regenerate
+          </Button>
         </div>
-      </div>
+      </Panel>
 
-      <div className="card p-4">
-        <label className="mb-2 block text-xs text-ink-dim">Members</label>
-        <ul className="space-y-1">
+      <Panel className="p-4">
+        <label className="mb-2 block text-xs font-medium text-ink-dim">Members</label>
+        <ul className="divide-y divide-line/50">
           {members.map((m) => (
-            <li key={m.puuid} className="flex items-center justify-between rounded px-2 py-1.5 text-sm hover:bg-bg-hover">
+            <li key={m.puuid} className="flex items-center justify-between py-2 text-sm">
               <span>
-                {m.riotId} {m.role === "owner" && <span className="text-xs text-gold">owner</span>}
+                {m.riotId} {m.role === "owner" && <span className="ml-1 text-2xs text-gold">owner</span>}
               </span>
               {m.role !== "owner" && (
                 <button className="text-xs text-loss hover:underline" onClick={() => remove(m.puuid)} type="button">
@@ -103,14 +110,14 @@ export function SettingsPanel({
             </li>
           ))}
         </ul>
-      </div>
+      </Panel>
 
-      <div className="card border-loss/30 p-4">
-        <label className="mb-2 block text-xs text-ink-dim">Danger zone</label>
-        <button className="btn border border-loss/40 text-loss hover:bg-loss/10" onClick={destroy} type="button">
-          Delete crew
-        </button>
-      </div>
+      <Panel className="border-loss/30 p-4">
+        <label className="mb-2 block text-xs font-medium text-ink-dim">Danger zone</label>
+        <Button variant="danger" onClick={destroy} type="button">
+          <Trash2 className="h-4 w-4" /> Delete crew
+        </Button>
+      </Panel>
     </div>
   );
 }

@@ -26,13 +26,13 @@ export default async function SettingsPage({ params }: { params: Promise<{ slug:
   const baseUrl = env().NEXT_PUBLIC_BASE_URL;
 
   return (
-    <div className="mx-auto max-w-xl space-y-4">
+    <div className="mx-auto max-w-xl space-y-5 px-4 py-8 sm:px-6">
       <div className="text-sm text-ink-dim">
         <Link href={`/crew/${slug}`} className="hover:text-ink">
           ← {crew.name}
         </Link>
       </div>
-      <h1 className="text-2xl font-bold">Crew settings</h1>
+      <h1 className="font-display text-3xl font-bold tracking-tight">Crew settings</h1>
       <SettingsPanel
         slug={slug}
         initialName={crew.name}

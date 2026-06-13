@@ -1,7 +1,7 @@
+import Link from "next/link";
 import { getPool, queryOne } from "@crewstats/shared";
 import { JoinForm } from "@/components/forms";
-import { Card } from "@/components/primitives";
-import Link from "next/link";
+import { Panel, Button } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -11,28 +11,29 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
 
   if (!crew) {
     return (
-      <div className="mx-auto max-w-md pt-10 text-center">
-        <h1 className="text-xl font-semibold">Invalid invite</h1>
+      <div className="mx-auto max-w-md px-4 py-20 text-center">
+        <h1 className="font-display text-xl font-bold">Invalid invite</h1>
         <p className="mt-2 text-ink-dim">That invite code is invalid or has been regenerated.</p>
-        <Link href="/" className="btn-ghost mt-4 inline-flex">
-          Go home
+        <Link href="/" className="mt-5 inline-block">
+          <Button variant="ghost">Go home</Button>
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-4 pt-6">
-      <h1 className="text-2xl font-bold">
-        Join <span className="text-accent">{crew.name}</span>
-      </h1>
-      <Card>
-        <p className="mb-4 text-sm text-ink-dim">
-          Enter your Riot ID to join. We&apos;ll pull your recent games right away and unlock the crew
-          stats. No Riot sign-in needed — all data is public match data.
+    <div className="mx-auto max-w-md space-y-5 px-4 py-12 sm:px-6">
+      <div>
+        <h1 className="font-display text-3xl font-bold tracking-tight">
+          Join <span className="text-primary">{crew.name}</span>
+        </h1>
+        <p className="mt-2 text-sm text-ink-dim">
+          Enter your Riot ID to unlock the crew stats. No Riot sign-in needed, all data is public match data.
         </p>
+      </div>
+      <Panel className="p-5">
         <JoinForm inviteCode={code} />
-      </Card>
+      </Panel>
     </div>
   );
 }

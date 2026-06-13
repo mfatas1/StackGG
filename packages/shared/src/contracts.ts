@@ -206,6 +206,27 @@ export const ActivityItemSchema = z.object({
 });
 export type ActivityItem = z.infer<typeof ActivityItemSchema>;
 
+export const MatchHistoryItemSchema = z.object({
+  matchId: z.string(),
+  queueId: z.number(),
+  queueSlug: QueueSlugSchema,
+  gameStart: z.string(),
+  gameDuration: z.number(),
+  championId: z.number(),
+  championName: z.string(),
+  role: z.string().nullable(),
+  win: z.boolean(),
+  kills: z.number(),
+  deaths: z.number(),
+  assists: z.number(),
+  cs: z.number(),
+  visionScore: z.number(),
+  placement: z.number().nullable(),
+  // crewmates who were in the same match (for crew-context match lists)
+  crewmates: z.array(z.object({ riotId: z.string(), championName: z.string(), sameSide: z.boolean() })),
+});
+export type MatchHistoryItem = z.infer<typeof MatchHistoryItemSchema>;
+
 export const CrewCardsSchema = z.object({
   gamesThisWeek: z.number(),
   fiveStackWinrate: z.number().nullable(),
