@@ -50,7 +50,7 @@ async function main() {
   // Cron: poll every 30 minutes (PLAN §9).
   await boss.schedule(JOB.POLL_ALL, "*/30 * * * *");
 
-  console.log("CrewStats worker running. Queues:", QUEUES.join(", "));
+  console.log("StackGG worker running. Queues:", QUEUES.join(", "));
 
   const shutdown = async () => {
     console.log("worker shutting down…");

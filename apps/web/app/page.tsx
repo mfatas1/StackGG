@@ -8,7 +8,7 @@ export default function Landing() {
         <h1 className="text-balance text-4xl font-bold tracking-tight sm:text-5xl">
           op.gg tells you how <span className="text-ink-dim">you</span> play.
           <br />
-          CrewStats tells you how your <span className="text-accent">group</span> plays together.
+          StackGG tells you how your <span className="text-accent">group</span> plays together.
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-ink-dim">
           A shared page for your League friend group: cross-mode leaderboard, duo synergy, and
@@ -43,7 +43,7 @@ export default function Landing() {
       <section className="card p-6 text-center">
         <h2 className="text-lg font-semibold">Made for the friend group, not the solo player</h2>
         <p className="mx-auto mt-2 max-w-2xl text-sm text-ink-dim">
-          Create a crew, drop the invite link in your Discord, and CrewStats backfills everyone&apos;s
+          Create a crew, drop the invite link in your Discord, and StackGG backfills everyone&apos;s
           last 90 days and keeps polling for new games. Every stat is computed <em>across</em> the
           group — the thing no other site does.
         </p>

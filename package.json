@@ -2,7 +2,7 @@
   "name": "crewstats",
   "private": true,
   "version": "0.1.0",
-  "description": "op.gg tells you how you play. CrewStats tells you how your group plays together.",
+  "description": "op.gg tells you how you play. StackGG tells you how your group plays together.",
   "workspaces": [
     "packages/shared",
     "packages/stats",

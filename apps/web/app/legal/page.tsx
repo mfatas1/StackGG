@@ -1,23 +1,23 @@
-export const metadata = { title: "Legal — CrewStats" };
+export const metadata = { title: "Legal — StackGG" };
 
 export default function Legal() {
   return (
     <div className="prose-invert mx-auto max-w-2xl space-y-4 text-sm leading-relaxed text-ink-dim">
       <h1 className="text-2xl font-bold text-ink">Legal &amp; Riot policy</h1>
       <p>
-        CrewStats isn&apos;t endorsed by Riot Games and doesn&apos;t reflect the views or opinions of
+        StackGG isn&apos;t endorsed by Riot Games and doesn&apos;t reflect the views or opinions of
         Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot
         Games and League of Legends are trademarks or registered trademarks of Riot Games, Inc.
       </p>
       <h2 className="text-lg font-semibold text-ink">What data we show</h2>
       <p>
-        CrewStats displays public match data retrieved from Riot&apos;s official API — the same basis
+        StackGG displays public match data retrieved from Riot&apos;s official API — the same basis
         on which sites like op.gg operate. Crew pages are private, invite-only views; you can only see
         crews you belong to.
       </p>
       <h2 className="text-lg font-semibold text-ink">Arena</h2>
       <p>
-        In line with Riot&apos;s developer policy, CrewStats never displays win rates for Arena
+        In line with Riot&apos;s developer policy, StackGG never displays win rates for Arena
         augments or items. We only show player- and duo-level stats such as placements and
         head-to-head records, which are permitted.
       </p>
