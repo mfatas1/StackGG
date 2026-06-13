@@ -1,0 +1,23 @@
+{
+  "name": "@crewstats/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@crewstats/shared": "*",
+    "@crewstats/stats": "*",
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1",
+    "pg-boss": "^10.1.6",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2"
+  }
+}
