@@ -1,0 +1,50 @@
+# Local / single-host deployment: Postgres + web + worker in one project.
+# Mirrors the Railway/Fly target in PLAN §9. Set RIOT_KEY + AUTH_SECRET in .env.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: crewstats
+      POSTGRES_PASSWORD: crewstats
+      POSTGRES_DB: crewstats
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crewstats"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: { context: ., target: worker }
+    command: ["npm", "run", "db:migrate"]
+    environment:
+      DATABASE_URL: postgres://crewstats:crewstats@db:5432/crewstats
+    depends_on:
+      db: { condition: service_healthy }
+
+  web:
+    build: { context: ., target: web }
+    environment:
+      DATABASE_URL: postgres://crewstats:crewstats@db:5432/crewstats
+      RIOT_KEY: ${RIOT_KEY}
+      AUTH_SECRET: ${AUTH_SECRET:-change-me}
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+      MAGIC_LINK_TRANSPORT: console
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    build: { context: ., target: worker }
+    environment:
+      DATABASE_URL: postgres://crewstats:crewstats@db:5432/crewstats
+      RIOT_KEY: ${RIOT_KEY}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+volumes:
+  pgdata:

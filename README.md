@@ -39,12 +39,46 @@ Full detail — data model, endpoints, architecture diagram, milestones, risks, 
 
 | Milestone | Scope | Status |
 |---|---|---|
-| M0 spike | Verify ARAM/Arena data shapes with a dev key (`spike/spike.mjs`) | ← we are here |
-| M1 skeleton | Monorepo scaffold, schema, shared contracts, rate-limited client, backfill job | |
-| M2 crew core | Auth, crew create/join/invite, dashboard with real data — friends start using it | |
-| M3 polish | Player snapshot, head-to-head, flex role stats, empty states, mobile | |
-| M4 public | Deploy, disclaimer, production key application, share beyond friends | |
-| v2 | Discord webhook digest → bot, RSO login, crew-vs-crew, other Riot titles | |
+| M0 spike | Verify ARAM/Arena data shapes with a dev key (`spike/spike.mjs`) | ✅ done |
+| M1 skeleton | Monorepo scaffold, schema, shared contracts, rate-limited client, backfill job | ✅ done |
+| M2 crew core | Auth, crew create/join/invite, dashboard with real data | ✅ done (local) |
+| M3 polish | Player snapshot, head-to-head, flex role stats, empty states | ✅ done (local) |
+| M4 public | Deploy, disclaimer, production key application, share beyond friends | ⏳ deploy config ready; cloud deploy pending hosting account |
+| v2 | Discord webhook digest → bot, RSO login, crew-vs-crew, other Riot titles | — |
+
+## Running the full app (local)
+
+```bash
+npm install
+cp .env.example .env            # then set RIOT_KEY (and AUTH_SECRET for prod)
+createdb crewstats              # local Postgres
+npm run db:migrate
+./scripts/dev.sh                # runs the worker + web together
+# open http://localhost:3000
+```
+
+Then: enter a Riot ID on the landing page to see a snapshot, or **Create a crew**
+(magic-link sign-in — in dev the link is printed to the server console and returned
+in the API response), share the `/join/<code>` link, and watch the dashboard fill in.
+
+Docker (Postgres + web + worker in one project): `docker compose up --build`.
+
+Tests: `npm test`. Typecheck: `npm run typecheck`.
+
+### Implementation notes / deviations from PLAN
+
+- **Auth** is a self-contained magic-link implementation (HMAC-signed session
+  cookie) rather than NextAuth, so it works with no external SMTP/credentials.
+  In v1 the link is delivered via console (`MAGIC_LINK_TRANSPORT=console`); wiring
+  an SMTP transport is a drop-in in `apps/web/lib/session.ts`.
+- **Rate limiting** is enforced through a Postgres-coordinated token bucket
+  (`riot_request_log`) so the 20 req/s · 100 req/2min limits are **global** across
+  the web and worker processes — verified holding at exactly 100/2min under load.
+- On a **personal** Riot key, the first backfill of a 5-person crew is rate-limited
+  to ~10–20 min of queued ingestion (PLAN §7); recent games appear immediately via a
+  synchronous quick-backfill, the rest fills in via the background worker.
+- **Deploy**: `Dockerfile` + `docker-compose.yml` are provided. Actual cloud
+  deployment (Railway/Fly) needs your hosting account and a managed Postgres.
 
 ## Getting started (current state: M0)
 
