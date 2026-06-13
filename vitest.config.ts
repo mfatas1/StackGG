@@ -5,6 +5,7 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["packages/**/*.test.ts", "apps/**/*.test.ts"],
+    setupFiles: ["./vitest.setup.ts"],
     fileParallelism: false, // tests share the test DB; run sequentially
     testTimeout: 20000,
     hookTimeout: 30000,
