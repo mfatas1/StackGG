@@ -1,8 +1,9 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { ArrowRight, Mail, Check } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowRight, Mail, Check, Search, Clock } from "lucide-react";
 import { Button, Input, Select } from "./ui";
+import { ProfileIcon } from "./Icons";
 
 export const REGIONS = [
   { value: "euw1", label: "EUW" },
@@ -29,33 +30,180 @@ function RegionSelect({ value, onChange }: { value: string; onChange: (v: string
   );
 }
 
+interface Suggestion {
+  riotId: string;
+  tag: string;
+  region: string;
+  profileIcon: number | null;
+}
+const RECENT_KEY = "stackgg:recent";
+
+function readRecent(): Suggestion[] {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+function pushRecent(s: Suggestion) {
+  try {
+    const key = (x: Suggestion) => `${x.riotId}#${x.tag}`.toLowerCase();
+    const next = [s, ...readRecent().filter((r) => key(r) !== key(s))].slice(0, 5);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function RiotIdForm({ size = "md" }: { size?: "md" | "lg" }) {
   const router = useRouter();
   const [riotId, setRiotId] = useState("");
   const [region, setRegion] = useState("euw1");
   const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<Suggestion[]>([]);
+  const [recent, setRecent] = useState<Suggestion[]>([]);
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(-1);
+  const boxRef = useRef<HTMLDivElement>(null);
+
   const valid = /.+#.+/.test(riotId);
+  const showRecent = riotId.trim().length === 0 && recent.length > 0;
+  const list = showRecent ? recent : results;
+
+  useEffect(() => {
+    setRecent(readRecent());
+  }, []);
+
+  // Debounced suggestion fetch.
+  useEffect(() => {
+    const q = riotId.trim();
+    if (q.length < 2) {
+      setResults([]);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        if (!cancelled) {
+          setResults(data.results ?? []);
+          setHi(-1);
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 160);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [riotId]);
+
+  // Close on outside click.
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  function go(target: { riotId: string; tag: string; region: string }) {
+    const full = `${target.riotId}#${target.tag}`;
+    pushRecent({ ...target, profileIcon: null });
+    setLoading(true);
+    setOpen(false);
+    router.push(`/player/${target.region}/${encodeURIComponent(full)}`);
+  }
+
+  function submitFree() {
+    if (!valid) return;
+    const [name, tag] = riotId.trim().split("#");
+    go({ riotId: name!, tag: tag!, region });
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) setOpen(true);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHi((h) => Math.min(h + 1, list.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHi((h) => Math.max(h - 1, -1));
+    } else if (e.key === "Enter") {
+      if (hi >= 0 && list[hi]) {
+        e.preventDefault();
+        go(list[hi]);
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  }
 
   return (
     <form
       className="flex flex-col gap-2 sm:flex-row"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!valid) return;
-        setLoading(true);
-        router.push(`/player/${region}/${encodeURIComponent(riotId.trim())}`);
+        submitFree();
       }}
     >
-      <div className="relative flex-1">
+      <div ref={boxRef} className="relative flex-1">
+        <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-ink-faint" />
         <Input
           className={size === "lg" ? "h-13 pl-9 text-base sm:h-14" : "pl-9"}
           placeholder="Riot ID — e.g. StackMember1#5418"
           value={riotId}
-          onChange={(e) => setRiotId(e.target.value)}
+          onChange={(e) => {
+            setRiotId(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={onKeyDown}
+          role="combobox"
+          aria-expanded={open && list.length > 0}
+          aria-controls="riotid-listbox"
+          aria-autocomplete="list"
           aria-label="Riot ID"
+          autoComplete="off"
           autoFocus
         />
-        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-ink-faint">#</span>
+        {open && list.length > 0 && (
+          <ul
+            id="riotid-listbox"
+            role="listbox"
+            className="absolute z-30 mt-1.5 max-h-72 w-full overflow-auto rounded border border-line bg-surface shadow-pop"
+          >
+            {showRecent && (
+              <li className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-2xs uppercase tracking-wide text-ink-faint">
+                <Clock className="h-3 w-3" /> Recent
+              </li>
+            )}
+            {list.map((s, i) => (
+              <li
+                key={`${s.riotId}#${s.tag}#${s.region}`}
+                role="option"
+                aria-selected={i === hi}
+                onMouseEnter={() => setHi(i)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  go(s);
+                }}
+                className={`flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm ${
+                  i === hi ? "bg-surface-3" : "hover:bg-surface-2"
+                }`}
+              >
+                <ProfileIcon id={s.profileIcon} name={s.riotId} size={24} />
+                <span className="font-medium">{s.riotId}</span>
+                <span className="text-ink-faint">#{s.tag}</span>
+                <span className="ml-auto rounded bg-surface-2 px-1.5 py-0.5 text-2xs uppercase text-ink-faint">
+                  {s.region}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <RegionSelect value={region} onChange={setRegion} />
       <Button size={size === "lg" ? "lg" : "md"} loading={loading} disabled={!valid}>
