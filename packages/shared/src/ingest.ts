@@ -8,6 +8,20 @@ import type { Queryable } from "./db.js";
 
 const DAY_MS = 86_400_000;
 
+/**
+ * Start of the current League ranked year (2026 Season 1 began 2026-01-08). Full
+ * backfills go back to here so a profile shows the whole season, not a rolling
+ * window. Override with SEASON_START (ISO date) when the new year rolls over.
+ */
+const SEASON_START = process.env.SEASON_START ?? "2026-01-08";
+
+/** Days from the season start until `now` (min 1), used as the full-backfill depth. */
+export function seasonStartDays(now: number = Date.now()): number {
+  const start = Date.parse(SEASON_START);
+  if (Number.isNaN(start)) return 90;
+  return Math.max(1, Math.ceil((now - start) / DAY_MS));
+}
+
 export interface BackfillOptions {
   puuid: string;
   platform: string;

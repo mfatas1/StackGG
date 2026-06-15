@@ -5,6 +5,7 @@ import {
   resolveAndUpsertAccount,
   refreshAccountRanks,
   backfillMember,
+  seasonStartDays,
   RiotApiError,
   parseRiotId,
 } from "@crewstats/shared";
@@ -53,8 +54,8 @@ export async function getOrBuildSnapshot(riotId: string, region: string): Promis
     } catch (err) {
       console.warn(`[snapshot] backfill failed for ${puuid.slice(0, 10)}…: ${(err as Error).message}`);
     }
-    // Full history in the background.
-    await enqueueBackfill({ puuid, platform: region, days: 90 });
+    // Full season history in the background.
+    await enqueueBackfill({ puuid, platform: region, days: seasonStartDays() });
   }
 
   const snapshot = await getPlayerSnapshot(getPool(), puuid);
