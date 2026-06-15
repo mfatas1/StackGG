@@ -39,14 +39,14 @@ const n = (v: number | undefined) => v ?? 0;
 // participation lead; frontline (tank) and enabling (support) carry real weight so
 // non-fed roles aren't invisible; economy/vision are minor tiebreakers.
 const W = {
-  killParticipation: 0.2,
-  damageShare: 0.26,
+  killParticipation: 0.22,
+  damageShare: 0.32,
   clutch: 0.1, // sprees, multikills, solo kills, objective steals
-  tank: 0.12, // damage taken + self-mitigated
-  support: 0.12, // heals + shields + ally saves
-  cc: 0.05,
-  vision: 0.04,
-  gold: 0.03,
+  tank: 0.1, // damage taken + self-mitigated
+  support: 0.1, // heals + shields + ally saves
+  cc: 0.04,
+  vision: 0.03,
+  gold: 0.02,
   deathPenalty: 0.18,
 };
 
