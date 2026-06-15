@@ -1,6 +1,6 @@
 import { query, type Queryable, QUEUES, QUEUE_LABEL } from "@crewstats/shared";
 import type { Award, AwardEntry, RolePlacement, PlayerIdentity } from "@crewstats/shared";
-import { winrate } from "./util.js";
+import { winrate, NOT_REMAKE_SQL } from "./util.js";
 import { getIdentity } from "./modes.js";
 
 /** A crew member's full role spread across the 5 lanes (ranked solo + flex). */
@@ -45,6 +45,7 @@ export async function getCrewRoleMatrix(client: Queryable, puuids: string[]): Pr
      JOIN matches m ON m.match_id = mp.match_id
      WHERE mp.puuid = ANY($1)
        AND m.queue_id IN (${QUEUES.RANKED_SOLO}, ${QUEUES.RANKED_FLEX})
+       AND ${NOT_REMAKE_SQL}
        AND mp.role IS NOT NULL AND mp.role <> ''
      GROUP BY mp.puuid, mp.role, mp.champion_name`,
     [puuids],
@@ -116,7 +117,7 @@ async function topGames(
          mp.kills, mp.deaths, mp.assists, mp.gold, mp.cs, mp.vision_score
        FROM match_participants mp
        JOIN matches m ON m.match_id = mp.match_id
-       WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR_QUEUES} ${whereExtra}
+       WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR_QUEUES} AND ${NOT_REMAKE_SQL} ${whereExtra}
        ORDER BY mp.puuid, v DESC NULLS LAST
      ) best
      ORDER BY best.v DESC NULLS LAST
@@ -225,7 +226,7 @@ export async function getCrewAwards(client: Queryable, puuids: string[]): Promis
     const rows = await query<{ puuid: string; total: string }>(
       `SELECT mp.puuid, sum(mp.${col})::text AS total
        FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id
-       WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR_QUEUES} AND mp.${col} IS NOT NULL
+       WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR_QUEUES} AND ${NOT_REMAKE_SQL} AND mp.${col} IS NOT NULL
        GROUP BY mp.puuid HAVING sum(mp.${col}) > 0
        ORDER BY sum(mp.${col}) DESC`,
       [puuids],
@@ -245,7 +246,7 @@ export async function getCrewAwards(client: Queryable, puuids: string[]): Promis
          row_number() OVER (PARTITION BY mp.puuid ORDER BY m.game_start)
          - row_number() OVER (PARTITION BY mp.puuid, mp.win ORDER BY m.game_start) AS grp
        FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id
-       WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR_QUEUES}
+       WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR_QUEUES} AND ${NOT_REMAKE_SQL}
      ),
      runs AS (SELECT puuid, count(*) AS streak FROM seq WHERE win GROUP BY puuid, grp),
      best AS (SELECT puuid, max(streak) AS best_streak FROM runs GROUP BY puuid)
@@ -261,7 +262,7 @@ export async function getCrewAwards(client: Queryable, puuids: string[]): Promis
   const grind = await query<{ puuid: string; games: string }>(
     `SELECT mp.puuid, count(*)::text AS games
      FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id
-     WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR_QUEUES}
+     WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR_QUEUES} AND ${NOT_REMAKE_SQL}
      GROUP BY mp.puuid ORDER BY count(*) DESC`,
     [puuids],
     client,
@@ -282,6 +283,7 @@ export async function getCrewRolePlacements(client: Queryable, puuids: string[])
      JOIN matches m ON m.match_id = mp.match_id
      WHERE mp.puuid = ANY($1)
        AND m.queue_id IN (${QUEUES.RANKED_SOLO}, ${QUEUES.RANKED_FLEX})
+       AND ${NOT_REMAKE_SQL}
        AND mp.role IS NOT NULL AND mp.role <> ''
      GROUP BY mp.puuid, mp.role`,
     [puuids],

@@ -51,6 +51,8 @@ export function MatchList({
 function MatchRow({ m, basePath, crewSlug, mePuuid }: { m: MatchHistoryItem; basePath: string; crewSlug?: string; mePuuid?: string }) {
   const [open, setOpen] = useState(false);
   const arena = m.queueSlug === "arena";
+  // A game under 5 min is a remake (early void) — neither a win nor a loss, like op.gg.
+  const remake = m.gameDuration > 0 && m.gameDuration < 300;
   const good = arena ? (m.placement ?? 9) <= 4 : m.win;
   const ratio = kdaRatio(m.kills, m.deaths, m.assists);
   const csPerMin = m.gameDuration > 0 ? (m.cs / (m.gameDuration / 60)).toFixed(1) : "0";
@@ -63,7 +65,7 @@ function MatchRow({ m, basePath, crewSlug, mePuuid }: { m: MatchHistoryItem; bas
   const g = grade(m.kills, m.deaths, m.assists);
 
   return (
-    <li className={`notch notch-sm border-l-2 bg-surface-2/40 ${good ? "border-l-win" : "border-l-loss"}`}>
+    <li className={`notch notch-sm border-l-2 bg-surface-2/40 ${remake ? "border-l-line" : good ? "border-l-win" : "border-l-loss"}`}>
       {/* Collapsed row — click to expand */}
       <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 py-2 pl-3 pr-3 text-left" aria-expanded={open}>
         <span className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -80,10 +82,10 @@ function MatchRow({ m, basePath, crewSlug, mePuuid }: { m: MatchHistoryItem; bas
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-sm">
             <span className="truncate font-medium">{m.championName}</span>
-            <span className={`text-2xs font-semibold ${good ? "text-win" : "text-loss"}`}>
-              {arena ? placementSuffix(m.placement ?? 0) : m.win ? "Win" : "Loss"}
+            <span className={`text-2xs font-semibold ${remake ? "text-ink-faint" : good ? "text-win" : "text-loss"}`}>
+              {remake ? "Remake" : arena ? placementSuffix(m.placement ?? 0) : m.win ? "Win" : "Loss"}
             </span>
-            {carrierKey === "You" && sameSide.length > 0 && !arena && <Crown className="h-3.5 w-3.5 text-gold" aria-label="You out-carried the stack" />}
+            {!remake && carrierKey === "You" && sameSide.length > 0 && !arena && <Crown className="h-3.5 w-3.5 text-gold" aria-label="You out-carried the stack" />}
           </div>
           <div className="mt-0.5 text-2xs text-ink-faint">
             {QUEUE_NAME[m.queueSlug] ?? "Game"} · {gameDuration(m.gameDuration)} · {timeAgo(m.gameStart)}

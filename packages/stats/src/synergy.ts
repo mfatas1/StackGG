@@ -18,7 +18,7 @@ async function memberTotals(
        count(*)::text AS games,
        count(*) FILTER (WHERE mp.win)::text AS wins
      FROM match_participants mp
-     JOIN matches m ON m.match_id = mp.match_id
+     JOIN matches m ON m.match_id = mp.match_id AND m.game_duration >= 300
      WHERE mp.puuid = ANY($1) ${queueIds ? "AND m.queue_id = ANY($2::int[])" : ""}
      GROUP BY mp.puuid`,
     queueIds ? [puuids, queueIds] : [puuids],
@@ -47,7 +47,7 @@ export async function getDuoSynergies(
        count(*)::text AS games,
        count(*) FILTER (WHERE a.win)::text AS wins
      FROM match_participants a
-     JOIN matches m ON m.match_id = a.match_id
+     JOIN matches m ON m.match_id = a.match_id AND m.game_duration >= 300
      JOIN match_participants b
        ON b.match_id = a.match_id AND a.puuid < b.puuid
       AND CASE WHEN m.queue_id = ${QUEUES.ARENA}
@@ -101,7 +101,7 @@ export async function getCrewLineups(client: Queryable, puuids: string[]): Promi
   const rows = await query<{ win: boolean; puuids: string[] }>(
     `SELECT bool_and(mp.win) AS win, array_agg(mp.puuid) AS puuids
        FROM match_participants mp
-       JOIN matches m ON m.match_id = mp.match_id
+       JOIN matches m ON m.match_id = mp.match_id AND m.game_duration >= 300
       WHERE mp.puuid = ANY($1)
         AND m.queue_id IN (${QUEUES.RANKED_SOLO}, ${QUEUES.RANKED_FLEX})
       GROUP BY mp.match_id, mp.team_id
@@ -120,7 +120,7 @@ export async function getFlexRoles(client: Queryable, puuids: string[]): Promise
        count(*)::text AS games,
        count(*) FILTER (WHERE mp.win)::text AS wins
      FROM match_participants mp
-     JOIN matches m ON m.match_id = mp.match_id
+     JOIN matches m ON m.match_id = mp.match_id AND m.game_duration >= 300
      WHERE mp.puuid = ANY($1) AND m.queue_id = ${QUEUES.RANKED_FLEX}
        AND mp.role IS NOT NULL AND mp.role <> ''
      GROUP BY mp.puuid, mp.role`,
