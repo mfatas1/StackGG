@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowRight, Mail, Check, Search, Clock, ChevronDown } from "lucide-react";
 import { Button } from "./kit/Button";
 import { Input, Field } from "./kit/Field";
@@ -30,31 +31,51 @@ function RegionSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(-1);
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const current = REGIONS.find((r) => r.value === value) ?? REGIONS[0]!;
   const tall = size === "lg";
 
+  function place() {
+    const b = btnRef.current?.getBoundingClientRect();
+    if (b) setPos({ top: b.bottom + 6, left: b.left, width: b.width });
+  }
+
+  // While open: reposition on scroll/resize and close on outside click. The menu
+  // is portaled to <body> (escaping the Frame's clip-path), so the outside check
+  // must consider both the trigger and the portaled list.
   useEffect(() => {
+    if (!open) return;
     function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!btnRef.current?.contains(t) && !listRef.current?.contains(t)) setOpen(false);
     }
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, []);
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open]);
 
+  function openMenu() {
+    place();
+    setHi(REGIONS.findIndex((r) => r.value === value));
+    setOpen(true);
+  }
   function choose(v: string) {
     onChange(v);
     setOpen(false);
   }
-  function toggle() {
-    setHi(REGIONS.findIndex((r) => r.value === value));
-    setOpen((o) => !o);
-  }
   function onKeyDown(e: React.KeyboardEvent) {
-    if (!open && (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ")) {
-      e.preventDefault();
-      setHi(REGIONS.findIndex((r) => r.value === value));
-      setOpen(true);
+    if (!open) {
+      if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openMenu();
+      }
       return;
     }
     if (e.key === "ArrowDown") {
@@ -72,48 +93,55 @@ function RegionSelect({
   }
 
   return (
-    <div ref={ref} className="relative flex">
+    <>
       <button
+        ref={btnRef}
         type="button"
-        onClick={toggle}
+        onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={onKeyDown}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="Region"
-        className={`notch notch-sm flex w-full items-center justify-between gap-2 border border-line bg-surface-2/80 pl-3.5 pr-3 font-medium text-ink backdrop-blur transition-colors hover:border-primary/40 focus:border-primary/60 focus:outline-none ${
+        className={`notch notch-sm flex items-center justify-between gap-2 border border-line bg-surface-2/80 pl-3.5 pr-3 font-medium text-ink backdrop-blur transition-colors hover:border-primary/40 focus:border-primary/60 focus:outline-none ${
           tall ? "h-13 min-w-[5rem] text-base sm:h-14" : "h-11 min-w-[4.5rem] text-sm"
         }`}
       >
         {current.label}
         <ChevronDown className={`h-4 w-4 shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
-      {open && (
-        <ul
-          role="listbox"
-          aria-label="Region"
-          className="notch notch-sm absolute right-0 top-full z-30 mt-1.5 max-h-72 w-full min-w-[7.5rem] overflow-auto border border-line bg-bg/95 py-1 shadow-[0_12px_32px_oklch(0_0_0/0.5)] backdrop-blur-md"
-        >
-          {REGIONS.map((r, i) => (
-            <li
-              key={r.value}
-              role="option"
-              aria-selected={r.value === value}
-              onMouseEnter={() => setHi(i)}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                choose(r.value);
-              }}
-              className={`flex cursor-pointer items-center justify-between px-3.5 py-2 text-sm ${
-                i === hi ? "bg-surface-3" : "hover:bg-surface-2"
-              } ${r.value === value ? "font-medium text-primary" : "text-ink"}`}
-            >
-              {r.label}
-              {r.value === value && <Check className="h-3.5 w-3.5 shrink-0" />}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+      {open &&
+        pos &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <ul
+            ref={listRef}
+            role="listbox"
+            aria-label="Region"
+            style={{ position: "fixed", top: pos.top, left: pos.left, minWidth: Math.max(pos.width, 128) }}
+            className="notch notch-sm z-[100] max-h-72 overflow-auto border border-line bg-bg/95 py-1 shadow-[0_12px_32px_oklch(0_0_0/0.5)] backdrop-blur-md"
+          >
+            {REGIONS.map((r, i) => (
+              <li
+                key={r.value}
+                role="option"
+                aria-selected={r.value === value}
+                onMouseEnter={() => setHi(i)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  choose(r.value);
+                }}
+                className={`flex cursor-pointer items-center justify-between gap-6 px-3.5 py-2 text-sm ${
+                  i === hi ? "bg-surface-3" : "hover:bg-surface-2"
+                } ${r.value === value ? "font-medium text-primary" : "text-ink"}`}
+              >
+                {r.label}
+                {r.value === value && <Check className="h-3.5 w-3.5 shrink-0" />}
+              </li>
+            ))}
+          </ul>,
+          document.body,
+        )}
+    </>
   );
 }
 
