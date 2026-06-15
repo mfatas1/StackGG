@@ -1,9 +1,33 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import { Settings } from "lucide-react";
 import { getPool, env } from "@crewstats/shared";
+import type { QueueSlug } from "@crewstats/shared";
 import { getCrewBySlug } from "@/lib/crews";
 import { getCrewDashboard, getCrewAwards, getCrewRoleMatrix, getCrewMemberPuuids, getCrewTags } from "@crewstats/stats";
+
+/**
+ * Cached dashboard payload. The page is force-dynamic (auth/cookies), but the heavy
+ * crew aggregations change only when a backfill/poll lands, so we serve them from the
+ * data cache: tab switches and re-navigations within the TTL are instant instead of
+ * recomputing every aggregation. Busted on manual Refresh (revalidateTag crew:<id>).
+ */
+function loadDashboard(crewId: string, queue: QueueSlug, puuids: string[]) {
+  return unstable_cache(
+    async () => {
+      const [d, awards, roleMatrix, tags] = await Promise.all([
+        getCrewDashboard(getPool(), crewId, queue, puuids),
+        getCrewAwards(getPool(), puuids),
+        getCrewRoleMatrix(getPool(), puuids),
+        getCrewTags(getPool(), puuids),
+      ]);
+      return { d, awards, roleMatrix, tags };
+    },
+    ["crew-dashboard", crewId, queue, puuids.join(",")],
+    { revalidate: 30, tags: [`crew:${crewId}`] },
+  )();
+}
 import { QueueTabs, parseQueueSlug } from "@/components/kit/Tabs";
 import { Frame, Section, PanelHead } from "@/components/kit/Frame";
 import { AvatarStack } from "@/components/kit/Avatar";
@@ -36,12 +60,7 @@ export default async function CrewDashboardPage({
   // Fetch member puuids once, then run the dashboard + queue-independent panels in
   // parallel (was a 3-step waterfall, and puuids was queried twice per load).
   const puuids = await getCrewMemberPuuids(getPool(), crew.id);
-  const [d, awards, roleMatrix, tags] = await Promise.all([
-    getCrewDashboard(getPool(), crew.id, queue, puuids),
-    getCrewAwards(getPool(), puuids),
-    getCrewRoleMatrix(getPool(), puuids),
-    getCrewTags(getPool(), puuids),
-  ]);
+  const { d, awards, roleMatrix, tags } = await loadDashboard(crew.id, queue, puuids);
   if (!d) notFound();
 
   const inviteUrl = `${env().NEXT_PUBLIC_BASE_URL}/join/${crew.invite_code}`;

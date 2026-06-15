@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getCrewBySlug } from "@/lib/crews";
 import { enqueuePollCrew } from "@/lib/boss";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
@@ -21,5 +22,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   }
 
   await enqueuePollCrew({ crewId: crew.id });
+  // Drop the cached dashboard so the next load re-reads the DB (the poll fills in new
+  // matches shortly; the 30s TTL covers the rest).
+  revalidateTag(`crew:${crew.id}`);
   return NextResponse.json({ ok: true });
 }
