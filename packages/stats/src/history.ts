@@ -54,6 +54,8 @@ export async function getMatchHistory(
     deaths: number;
     assists: number;
     cs: number;
+    gold: number;
+    damage: number;
     vision_score: number;
     placement: number | null;
     team_id: number;
@@ -61,7 +63,7 @@ export async function getMatchHistory(
   }>(
     `SELECT mp.match_id, m.queue_id, m.game_start::text AS game_start, m.game_duration,
             mp.champion_id, mp.champion_name, mp.role, mp.win, mp.kills, mp.deaths,
-            mp.assists, mp.cs, mp.vision_score, mp.placement, mp.team_id, mp.subteam_id
+            mp.assists, mp.cs, mp.gold, mp.damage, mp.vision_score, mp.placement, mp.team_id, mp.subteam_id
      FROM match_participants mp
      JOIN matches m ON m.match_id = mp.match_id
      WHERE ${where}
@@ -74,18 +76,27 @@ export async function getMatchHistory(
 
   // Annotate crewmates present in each match.
   const crew = (opts.crewPuuids ?? []).filter((p) => p !== puuid);
-  const mateByMatch = new Map<string, { riotId: string; championName: string; sameSide: boolean }[]>();
+  const mateByMatch = new Map<string, MatchHistoryItem["crewmates"]>();
   if (crew.length) {
     const matchIds = rows.map((r) => r.match_id);
     const mates = await query<{
       match_id: string;
+      puuid: string;
       riot_id: string;
+      tag: string;
+      region: string;
       champion_name: string;
       team_id: number;
       subteam_id: number | null;
       queue_id: number;
+      win: boolean;
+      kills: number;
+      deaths: number;
+      assists: number;
+      damage: number;
     }>(
-      `SELECT mp.match_id, ra.riot_id, mp.champion_name, mp.team_id, mp.subteam_id, m.queue_id
+      `SELECT mp.match_id, mp.puuid, ra.riot_id, ra.tag, ra.region, mp.champion_name,
+              mp.team_id, mp.subteam_id, m.queue_id, mp.win, mp.kills, mp.deaths, mp.assists, mp.damage
        FROM match_participants mp
        JOIN riot_accounts ra ON ra.puuid = mp.puuid
        JOIN matches m ON m.match_id = mp.match_id
@@ -100,7 +111,19 @@ export async function getMatchHistory(
       const sameSide =
         mate.queue_id === QUEUES.ARENA ? mate.subteam_id === me.subteam_id : mate.team_id === me.team_id;
       const arr = mateByMatch.get(mate.match_id) ?? [];
-      arr.push({ riotId: mate.riot_id, championName: mate.champion_name, sameSide });
+      arr.push({
+        puuid: mate.puuid,
+        riotId: mate.riot_id,
+        tag: mate.tag,
+        region: mate.region,
+        championName: mate.champion_name,
+        sameSide,
+        win: mate.win,
+        kills: mate.kills,
+        deaths: mate.deaths,
+        assists: mate.assists,
+        damage: mate.damage,
+      });
       mateByMatch.set(mate.match_id, arr);
     }
   }
@@ -119,6 +142,8 @@ export async function getMatchHistory(
     deaths: r.deaths,
     assists: r.assists,
     cs: r.cs,
+    gold: r.gold,
+    damage: r.damage,
     visionScore: r.vision_score,
     placement: r.placement,
     crewmates: mateByMatch.get(r.match_id) ?? [],

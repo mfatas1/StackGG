@@ -16,7 +16,11 @@ export function round(n: number, dp = 2): number {
   return Math.round(n * f) / f;
 }
 
-/** Map a UI queue slug to the queue_id filter, or null for "all". */
+/**
+ * Map a UI queue slug to its queue_id filter. NOTE: the default "all" tab means
+ * Summoner's Rift (ranked solo + flex) — Arena and ARAM are NOT blended into the
+ * headline winrate; they live on their own tabs. (Never returns null now.)
+ */
 export function queueIdsForSlug(slug: QueueSlug): number[] | null {
   switch (slug) {
     case "ranked":
@@ -28,7 +32,7 @@ export function queueIdsForSlug(slug: QueueSlug): number[] | null {
     case "arena":
       return [QUEUES.ARENA];
     case "all":
-      return null;
+      return [QUEUES.RANKED_SOLO, QUEUES.RANKED_FLEX];
   }
 }
 

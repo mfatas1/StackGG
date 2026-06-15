@@ -2,10 +2,16 @@ import { NextResponse } from "next/server";
 import { CreateCrewRequestSchema } from "@crewstats/shared";
 import { getCurrentUser } from "@/lib/session";
 import { createCrew, CrewError } from "@/lib/crews";
+import { rateLimit } from "@/lib/ratelimit";
 
 export async function POST(req: Request) {
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Sign in to create a crew." }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Sign in to create a stack." }, { status: 401 });
+
+  // A signed-in user can't spin up unlimited stacks (each triggers backfills/Riot calls).
+  if (!rateLimit(`crew-create:${user.id}`, 8, 60 * 60_000)) {
+    return NextResponse.json({ error: "You've created a lot of stacks recently. Try again later." }, { status: 429 });
+  }
 
   const parsed = CreateCrewRequestSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Check the crew name and Riot ID." }, { status: 400 });

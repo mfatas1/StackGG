@@ -5,11 +5,11 @@ import { useEffect, useState } from "react";
 
 function Wordmark() {
   return (
-    <Link href="/" className="group inline-flex items-center gap-2">
-      <span className="relative grid h-7 w-7 place-items-center rounded-sm bg-primary text-primary-on">
+    <Link href="/" className="group inline-flex items-center gap-2.5">
+      <span className="notch notch-sm grid h-7 w-7 place-items-center bg-primary text-primary-on">
         <span className="font-display text-base font-extrabold leading-none">S</span>
       </span>
-      <span className="font-display text-lg font-bold tracking-tight">
+      <span className="font-display text-lg font-bold tracking-tight text-ink">
         Stack<span className="text-primary">GG</span>
       </span>
     </Link>
@@ -19,7 +19,6 @@ function Wordmark() {
 export function SiteHeader() {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
-  const isLanding = pathname === "/";
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,45 +39,33 @@ export function SiteHeader() {
   }
 
   return (
-    <header
-      className={
-        isLanding
-          ? "absolute inset-x-0 top-0 z-40"
-          : "sticky top-0 z-40 border-b border-line/70 bg-bg/80 backdrop-blur-md"
-      }
-    >
+    <header className="sticky top-0 z-40 border-b border-line/40 bg-bg/55 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Wordmark />
         <nav className="flex items-center gap-1 text-sm">
           {email ? (
-            <Link
-              href="/account"
-              className="rounded px-3 py-1.5 font-medium text-ink-dim transition-colors hover:text-ink"
-            >
-              My crews
+            <Link href="/account" className="px-3 py-1.5 font-medium text-ink-dim transition-colors hover:text-ink">
+              My stacks
             </Link>
           ) : (
-            <Link
-              href="/crew/new"
-              className="rounded px-3 py-1.5 font-medium text-ink-dim transition-colors hover:text-ink"
-            >
-              Create a crew
+            <Link href="/stack/new" className="px-3 py-1.5 font-medium text-ink-dim transition-colors hover:text-ink">
+              Create a stack
             </Link>
           )}
-          <Link
-            href="/legal"
-            className="hidden rounded px-3 py-1.5 font-medium text-ink-dim transition-colors hover:text-ink sm:inline-block"
-          >
+          <Link href="/legal" className="hidden px-3 py-1.5 font-medium text-ink-dim transition-colors hover:text-ink sm:inline-block">
             Legal
           </Link>
-          {email && (
-            <button
-              onClick={logout}
-              className="rounded px-3 py-1.5 font-medium text-ink-faint transition-colors hover:text-ink"
-              title={`Signed in as ${email}`}
-            >
+          {email ? (
+            <button onClick={logout} className="px-3 py-1.5 font-medium text-ink-faint transition-colors hover:text-ink" title={`Signed in as ${email}`}>
               Sign out
             </button>
+          ) : (
+            <Link
+              href={`/login?redirect=${encodeURIComponent(pathname)}`}
+              className="notch notch-sm bg-primary/15 px-3 py-1.5 font-semibold text-primary transition-colors hover:bg-primary/25"
+            >
+              Sign in
+            </Link>
           )}
         </nav>
       </div>

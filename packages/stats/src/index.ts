@@ -7,4 +7,5 @@ export * from "./synergy.js";
 export * from "./activity.js";
 export * from "./crew.js";
 export * from "./awards.js";
+export * from "./tags.js";
 export * from "./memberpage.js";

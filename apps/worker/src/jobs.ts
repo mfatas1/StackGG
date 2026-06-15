@@ -25,14 +25,13 @@ async function getCrewMembers(crewId: string): Promise<CrewMember[]> {
 export async function handleBackfillMember(data: BackfillMemberJob): Promise<void> {
   const platform = data.platform;
   let tracked: Set<string> | undefined;
-  let storeRaw = false;
+  // Always keep the full match payload (matches.raw) so the match-history "full lobby"
+  // view can be served straight from the DB, with no live Riot request / API key.
+  const storeRaw = true;
   if (data.crewId) {
     const members = await getCrewMembers(data.crewId);
     tracked = new Set(members.map((m) => m.puuid));
     tracked.add(data.puuid);
-  } else {
-    // Snapshot backfill: only this player's rows + raw for teammate detection.
-    storeRaw = true;
   }
   const res = await backfillMember({ puuid: data.puuid, platform, days: data.days ?? 90, trackedPuuids: tracked, storeRaw });
   console.log(`[backfill] ${data.puuid.slice(0, 10)}… fetched ${res.fetched}/${res.candidateMatchIds} matches, ${res.participantsWritten} rows`);

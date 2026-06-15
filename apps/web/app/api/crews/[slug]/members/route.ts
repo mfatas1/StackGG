@@ -12,7 +12,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ slug: string
   const crew = await getCrewBySlug(slug);
   if (!crew) return NextResponse.json({ error: "Crew not found." }, { status: 404 });
   if (!(await isCrewOwner(crew.id, user.id)))
-    return NextResponse.json({ error: "Only the crew owner can do that." }, { status: 403 });
+    return NextResponse.json({ error: "Only the stack owner can do that." }, { status: 403 });
 
   await removeMember(crew.id, puuid);
   return NextResponse.json({ ok: true });

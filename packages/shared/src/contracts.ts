@@ -167,6 +167,16 @@ export const DuoSynergySchema = z.object({
 });
 export type DuoSynergy = z.infer<typeof DuoSynergySchema>;
 
+// One side of one shared match: the crew members who played together on the same
+// team (same Arena subteam) and whether that side won. The client uses these to
+// compute the together-winrate of ANY selected subset of the crew (interactive
+// synergy explorer) — pairs, trios, a full stack — without a round-trip.
+export const CrewLineupSchema = z.object({
+  win: z.boolean(),
+  puuids: z.array(z.string()), // tracked crew members on this side (>= 2)
+});
+export type CrewLineup = z.infer<typeof CrewLineupSchema>;
+
 export const FlexRoleStatSchema = z.object({
   identity: PlayerIdentitySchema,
   role: z.string(), // TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY
@@ -176,13 +186,24 @@ export const FlexRoleStatSchema = z.object({
 });
 export type FlexRoleStat = z.infer<typeof FlexRoleStatSchema>;
 
-// A crew superlative / record (bragging rights).
+// One ranked entry within a record's leaderboard (rank 1 = the holder).
+export const AwardEntrySchema = z.object({
+  rank: z.number(), // 1..5
+  holder: PlayerIdentitySchema,
+  value: z.string(), // "21"
+  sub: z.string(), // "Draven · 21/4/8 · Ranked Flex"
+});
+export type AwardEntry = z.infer<typeof AwardEntrySchema>;
+
+// A crew superlative / record (bragging rights). `holder`/`value`/`sub` mirror the
+// #1 entry; `ranking` is the full top-N leaderboard for that record.
 export const AwardSchema = z.object({
   key: z.string(),
   label: z.string(), // "Most kills in a game"
   value: z.string(), // "21"
   holder: PlayerIdentitySchema,
   sub: z.string(), // "Draven · 21/4/8 · Ranked Flex"
+  ranking: z.array(AwardEntrySchema).default([]), // top 5, incl. the holder at rank 1
 });
 export type Award = z.infer<typeof AwardSchema>;
 
@@ -231,12 +252,30 @@ export const MatchHistoryItemSchema = z.object({
   deaths: z.number(),
   assists: z.number(),
   cs: z.number(),
+  gold: z.number(),
+  damage: z.number(),
   visionScore: z.number(),
   placement: z.number().nullable(),
-  // crewmates who were in the same match (for crew-context match lists)
-  crewmates: z.array(z.object({ riotId: z.string(), championName: z.string(), sameSide: z.boolean() })),
+  // Tracked crewmates who were in the same match, with their line (for the
+  // crew-context match view + "who carried" among the crew). Same side or enemy.
+  crewmates: z.array(
+    z.object({
+      puuid: z.string(),
+      riotId: z.string(),
+      tag: z.string(),
+      region: z.string(),
+      championName: z.string(),
+      sameSide: z.boolean(),
+      win: z.boolean(),
+      kills: z.number(),
+      deaths: z.number(),
+      assists: z.number(),
+      damage: z.number(),
+    }),
+  ),
 });
 export type MatchHistoryItem = z.infer<typeof MatchHistoryItemSchema>;
+export type MatchCrewmate = MatchHistoryItem["crewmates"][number];
 
 export const CrewCardsSchema = z.object({
   gamesThisWeek: z.number(),
@@ -265,6 +304,7 @@ export const CrewDashboardSchema = z.object({
   cards: CrewCardsSchema,
   leaderboard: z.array(LeaderboardEntrySchema),
   synergies: z.array(DuoSynergySchema),
+  lineups: z.array(CrewLineupSchema), // for the interactive synergy explorer
   flexRoles: z.array(FlexRoleStatSchema),
   activity: z.array(ActivityItemSchema),
   queue: QueueSlugSchema,

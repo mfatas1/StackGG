@@ -11,7 +11,7 @@ import type {
 import { QUEUES } from "@crewstats/shared";
 import { winrate, round, queueIdsForSlug } from "./util.js";
 import { getIdentity, getRecentForm } from "./modes.js";
-import { getDuoSynergies, getFlexRoles } from "./synergy.js";
+import { getDuoSynergies, getFlexRoles, getCrewLineups } from "./synergy.js";
 import { getActivity } from "./activity.js";
 
 export async function getCrewMemberPuuids(client: Queryable, crewId: string): Promise<string[]> {
@@ -129,7 +129,7 @@ export async function getLeaderboard(
     });
   }
 
-  // Rank: by winrate desc (min games to be meaningful), then games desc. Arena by placement asc.
+  // Rank: by winrate desc, then games desc. Arena by placement asc.
   entries.sort((a, b) => {
     if (slug === "arena") {
       const pa = a.avgPlacement ?? 99;
@@ -167,16 +167,16 @@ export async function getCrewCards(client: Queryable, puuids: string[]): Promise
     client,
   );
 
-  // Full-stack (>=5 crew members on same team / subteam) winrate.
+  // Full-stack (>=5 crew members on the same team) winrate — Summoner's Rift only.
   const fiveStack = await queryOne<{ games: string; wins: string }>(
     `WITH stacks AS (
-       SELECT m.match_id,
-         CASE WHEN m.queue_id = ${QUEUES.ARENA} THEN mp.subteam_id ELSE mp.team_id END AS side,
+       SELECT m.match_id, mp.team_id AS side,
          count(*) AS n,
          bool_or(mp.win) AS won
        FROM match_participants mp
        JOIN matches m ON m.match_id = mp.match_id
        WHERE mp.puuid = ANY($1)
+         AND m.queue_id IN (${QUEUES.RANKED_SOLO}, ${QUEUES.RANKED_FLEX})
        GROUP BY m.match_id, side
        HAVING count(*) >= 5
      )
@@ -241,10 +241,11 @@ export async function getCrewDashboard(
     if (id) members.push(id);
   }
 
-  const [leaderboard, cards, synergies, flexRoles, activity] = await Promise.all([
+  const [leaderboard, cards, synergies, lineups, flexRoles, activity] = await Promise.all([
     getLeaderboard(client, puuids, slug),
     getCrewCards(client, puuids),
     getDuoSynergies(client, puuids, slug, MIN_SYNERGY_GAMES),
+    getCrewLineups(client, puuids),
     getFlexRoles(client, puuids),
     getActivity(client, puuids, slug, 20),
   ]);
@@ -255,6 +256,7 @@ export async function getCrewDashboard(
     cards,
     leaderboard,
     synergies,
+    lineups,
     flexRoles,
     activity,
     queue: slug,

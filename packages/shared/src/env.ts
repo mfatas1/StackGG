@@ -15,7 +15,10 @@ const schema = z.object({
   DEFAULT_PLATFORM: z.string().default("euw1"),
   AUTH_SECRET: z.string().min(1).default("dev-secret-change-me-in-production"),
   NEXT_PUBLIC_BASE_URL: z.string().default("http://localhost:3000"),
-  MAGIC_LINK_TRANSPORT: z.enum(["console", "smtp"]).default("console"),
+  MAGIC_LINK_TRANSPORT: z.enum(["console", "resend"]).default("console"),
+  // Email (magic-link delivery via Resend's HTTP API — no SMTP/deps).
+  RESEND_API_KEY: z.string().optional(),
+  MAGIC_LINK_FROM: z.string().default("StackGG <onboarding@resend.dev>"),
   NODE_ENV: z.string().default("development"),
 });
 

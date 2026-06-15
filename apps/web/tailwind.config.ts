@@ -1,50 +1,52 @@
 import type { Config } from "tailwindcss";
 
 /**
- * StackGG — Hextech theme (League client visual language). Obsidian-navy base,
- * Hextech gold as the brand/action color, Hextech teal as accent + victory,
- * red for defeat. Fixed dark theme. Hex values track the League client palette.
+ * CrewStats / StackGG — warm-dark Hextech (coral + gold on warm charcoal).
+ *
+ * Per FRONTEND_PLAN §3 + DESIGN.md color palette: the identity is a warm-charcoal
+ * surface ramp, a CORAL primary (hue 45), and GOLD for rank / #1. The only cool
+ * color is atmospheric fog at depth (3D stage only) — never UI. Tokens are OKLCH
+ * components stored as CSS custom properties so `bg-primary/10` opacity works and
+ * the whole app reskins from `globals.css`.
  */
+
+const c = (v: string) => `oklch(var(${v}) / <alpha-value>)`;
+
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        bg: "#010A13", // obsidian
+        bg: c("--bg"),
         surface: {
-          DEFAULT: "#0A1622", // panel base
-          2: "#0F1F30", // raised panel
-          3: "#16293E", // hover / selected
+          DEFAULT: c("--surface"),
+          2: c("--surface-2"),
+          3: c("--surface-3"),
         },
         line: {
-          DEFAULT: "#1E3247", // navy hairline
-          strong: "#3C5A73",
+          DEFAULT: c("--line"),
+          strong: c("--line-strong"),
         },
         ink: {
-          DEFAULT: "#F0E6D2", // hextech parchment
-          dim: "#A09B8C", // muted grey-gold
-          faint: "#7A8A99", // navy-grey meta
+          DEFAULT: c("--ink"),
+          dim: c("--ink-dim"),
+          faint: c("--ink-faint"),
         },
-        // Brand / action = Hextech gold
+        // Brand / action = coral
         primary: {
-          DEFAULT: "#C89B3C", // hextech gold
-          strong: "#E3BD6A", // brighter gold for hover/active
-          on: "#06101C", // near-black text on gold
+          DEFAULT: c("--primary"),
+          strong: c("--primary-strong"),
+          on: c("--primary-on"),
         },
+        // Rank tiers / #1 highlight
         gold: {
-          DEFAULT: "#C89B3C",
-          light: "#F0D9A0",
-          dark: "#785A28",
+          DEFAULT: c("--gold"),
+          light: c("--gold-light"),
+          dark: c("--gold-dark"),
         },
-        // Hextech teal accent + victory
-        hex: {
-          DEFAULT: "#0AC8B9",
-          dim: "#0397AB",
-          deep: "#005A82",
-        },
-        win: "#0AC8B9", // League marks victory in teal/blue
-        loss: "#E84057", // defeat red
-        info: "#0397AB",
+        win: c("--win"),
+        loss: c("--loss"),
+        info: c("--info"),
       },
       fontFamily: {
         display: ["var(--font-display)", "Georgia", "serif"],
@@ -58,20 +60,24 @@ const config: Config = {
         base: ["1rem", { lineHeight: "1.5rem" }],
         lg: ["1.125rem", { lineHeight: "1.6rem" }],
         xl: ["1.25rem", { lineHeight: "1.6rem" }],
-        "2xl": ["1.5rem", { lineHeight: "1.7rem" }],
-        "3xl": ["1.875rem", { lineHeight: "2.1rem" }],
+        "2xl": ["1.5rem", { lineHeight: "1.75rem" }],
+        "3xl": ["1.875rem", { lineHeight: "2.15rem" }],
         "4xl": ["2.25rem", { lineHeight: "2.4rem" }],
+        "5xl": ["3rem", { lineHeight: "1.05" }],
+        hero: ["clamp(2.5rem, 6vw, 5rem)", { lineHeight: "1.02", letterSpacing: "-0.03em" }],
       },
       borderRadius: {
-        sm: "3px",
-        DEFAULT: "4px",
-        lg: "6px",
+        sm: "8px",
+        DEFAULT: "12px",
+        md: "12px",
+        lg: "16px",
         pill: "999px",
       },
       boxShadow: {
-        pop: "0 14px 40px rgba(0,0,0,0.6)",
-        glow: "0 0 0 1px rgba(200,155,60,0.5), 0 6px 24px rgba(200,155,60,0.18)",
-        "glow-hex": "0 0 0 1px rgba(10,200,185,0.45), 0 6px 24px rgba(10,200,185,0.16)",
+        pop: "0 12px 32px oklch(0 0 0 / 0.45)",
+        glow: "0 0 0 1px oklch(var(--primary) / 0.45), 0 8px 30px oklch(var(--primary) / 0.20)",
+        "glow-gold": "0 0 0 1px oklch(var(--gold) / 0.40), 0 8px 30px oklch(var(--gold) / 0.18)",
+        rim: "inset 0 1px 0 oklch(var(--ink) / 0.06)",
       },
       transitionTimingFunction: {
         "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",
@@ -86,11 +92,17 @@ const config: Config = {
           "0%": { opacity: "0", transform: "scale(0.96)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
+        "ring-ignite": {
+          "0%": { opacity: "0", transform: "scale(0.6) rotate(-25deg)" },
+          "55%": { opacity: "1" },
+          "100%": { opacity: "1", transform: "scale(1) rotate(0deg)" },
+        },
         shimmer: { "100%": { transform: "translateX(100%)" } },
       },
       animation: {
         "fade-up": "fade-up 0.5s cubic-bezier(0.16,1,0.3,1) both",
         "pop-in": "pop-in 0.35s cubic-bezier(0.16,1,0.3,1) both",
+        "ring-ignite": "ring-ignite 0.8s cubic-bezier(0.16,1,0.3,1) both",
       },
     },
   },

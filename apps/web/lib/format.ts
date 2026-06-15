@@ -15,8 +15,12 @@ export function champSplash(championName: string): string {
   return `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${name}_0.jpg`;
 }
 
-/** Summoner's Rift minimap art. */
-export const RIFT_MAP_URL = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/map/map11.png`;
+/** Summoner's Rift minimap art — the CURRENT in-game minimap from CommunityDragon
+ * (Riot's live game assets; "latest" tracks the current patch). Data Dragon only
+ * ships the legacy map11.png, so we use CommunityDragon for the up-to-date terrain.
+ * Served via the same-origin /api/riftmap proxy (cached, no CORS taint for WebGL). */
+export const RIFT_MAP_URL =
+  "https://raw.communitydragon.org/latest/game/assets/maps/info/map11/2dlevelminimap_base_baron1.png";
 
 const CDRAGON = "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default";
 
@@ -69,6 +73,19 @@ export function rankString(rank: RankInfo | null): string {
   const tier = rank.tier.charAt(0) + rank.tier.slice(1).toLowerCase();
   const apex = ["MASTER", "GRANDMASTER", "CHALLENGER"].includes(rank.tier);
   return apex ? `${tier} ${rank.lp} LP` : `${tier} ${rank.rank} · ${rank.lp} LP`;
+}
+
+const TIER_ORDER = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"];
+const DIVISION_ORDER: Record<string, number> = { IV: 0, III: 1, II: 2, I: 3 };
+
+/** A single comparable number for a ranked tier (higher = better). Unranked sorts last. */
+export function rankScore(rank: RankInfo | null | undefined): number {
+  if (!rank) return -1;
+  const t = TIER_ORDER.indexOf(rank.tier.toUpperCase());
+  if (t < 0) return -1;
+  const apex = t >= TIER_ORDER.indexOf("MASTER");
+  const div = apex ? 0 : DIVISION_ORDER[rank.rank.toUpperCase()] ?? 0;
+  return t * 10_000 + div * 1_000 + rank.lp;
 }
 
 export function kdaString(k: number, d: number, a: number): string {

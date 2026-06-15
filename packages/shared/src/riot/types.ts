@@ -58,6 +58,31 @@ export const ParticipantDtoSchema = z
     totalMinionsKilled: z.number().int(),
     neutralMinionsKilled: z.number().int().optional().default(0),
     visionScore: z.number().int().optional().default(0),
+    // Extra stats for the records board (all participant-level, no timeline):
+    totalTimeSpentDead: z.number().int().optional().default(0),
+    longestTimeSpentLiving: z.number().int().optional().default(0),
+    largestKillingSpree: z.number().int().optional().default(0),
+    largestMultiKill: z.number().int().optional().default(0),
+    pentaKills: z.number().int().optional().default(0),
+    totalDamageTaken: z.number().int().optional().default(0),
+    damageSelfMitigated: z.number().int().optional().default(0),
+    totalHealsOnTeammates: z.number().int().optional().default(0),
+    totalDamageShieldedOnTeammates: z.number().int().optional().default(0),
+    timeCCingOthers: z.number().int().optional().default(0),
+    largestCriticalStrike: z.number().int().optional().default(0),
+    objectivesStolen: z.number().int().optional().default(0),
+    challenges: z
+      .object({
+        soloKills: z.number().optional(),
+        teamDamagePercentage: z.number().optional(),
+        skillshotsDodged: z.number().optional(),
+        killsNearEnemyTurret: z.number().optional(),
+        takedownsInEnemyFountain: z.number().optional(),
+        epicMonsterStolenWithoutSmite: z.number().optional(),
+        saveAllyFromDeath: z.number().optional(),
+      })
+      .passthrough()
+      .optional(),
     riotIdGameName: z.string().optional(),
     riotIdTagline: z.string().optional(),
     // Arena-specific (queue 1700):
