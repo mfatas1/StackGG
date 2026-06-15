@@ -1,5 +1,7 @@
-# Web (Next.js) production image — used by the Railway "web" service and docker-compose.
-# Self-contained single-target build so the host never has to pick a --target.
+# Web (Next.js) + pg-boss worker in ONE image — used by the Railway "web" service.
+# Running both in one container keeps the deploy at 2 resources (this + Postgres),
+# which fits Railway's free trial. The separate Dockerfile.worker still exists for
+# the split (paid) layout and for docker-compose.
 FROM node:22-slim AS build
 WORKDIR /app
 # Install ALL deps (incl. dev) — the Next build toolchain (typescript, tailwind…) lives in devDependencies.
@@ -17,6 +19,7 @@ FROM node:22-slim AS run
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app ./
-# Railway provides $PORT; `start` honors it and falls back to 3100 locally.
+# Railway provides $PORT; the web `start` honors it and falls back to 3100 locally.
 EXPOSE 3100
-CMD ["npm", "run", "start", "--workspace", "apps/web"]
+# Launch web + worker together (see scripts/start-combined.mjs).
+CMD ["node", "scripts/start-combined.mjs"]
