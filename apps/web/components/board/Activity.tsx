@@ -57,24 +57,9 @@ function ActivityRow({ m }: { m: ActivityItem }) {
 
       {open && (
         <div className="border-t border-line/40 px-3 py-3">
-          <MatchScoreboard
-            matchId={m.matchId}
-            queueSlug={m.queueSlug}
-            highlight={m.members.map((p) => p.puuid)}
-            fallback={
-              <div className="flex flex-wrap gap-1.5">
-                {m.members.map((p) => (
-                  <span key={p.puuid} className="notch notch-sm flex items-center gap-1.5 bg-surface-2/60 py-1 pl-1 pr-2.5 text-xs">
-                    <ChampIcon name={p.championName} size={18} />
-                    <span className="font-medium">{p.riotId}</span>
-                    <span className="font-mono text-ink-dim tnum">
-                      {p.kills}/{p.deaths}/{p.assists}
-                    </span>
-                  </span>
-                ))}
-              </div>
-            }
-          />
+          {/* No fallback lines — the stack's lines are already shown in the row header
+              above, so on an unavailable lobby we just show the small note (no duplicate). */}
+          <MatchScoreboard matchId={m.matchId} queueSlug={m.queueSlug} highlight={m.members.map((p) => p.puuid)} />
         </div>
       )}
     </li>
