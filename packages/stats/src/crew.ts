@@ -10,7 +10,7 @@ import type {
 } from "@crewstats/shared";
 import { QUEUES } from "@crewstats/shared";
 import { winrate, round, queueIdsForSlug, NOT_REMAKE_SQL } from "./util.js";
-import { getIdentity, getRecentForm } from "./modes.js";
+import { getIdentity, getIdentities, getRecentForms } from "./modes.js";
 import { getDuoSynergies, getFlexRoles, getCrewLineups } from "./synergy.js";
 import { getActivity } from "./activity.js";
 
@@ -104,16 +104,23 @@ export async function getLeaderboard(
   }
   const crewWr = crewGames > 0 ? crewWins / crewGames : null;
 
+  // Batched: one query for all identities + one windowed query for all recent form,
+  // instead of two serial queries per member.
+  const [identities, forms] = await Promise.all([
+    getIdentities(client, puuids),
+    getRecentForms(client, puuids, 5, queueIds),
+  ]);
+
   const entries: LeaderboardEntry[] = [];
   for (const r of rows) {
-    const identity = await getIdentity(client, r.puuid);
+    const identity = identities.get(r.puuid);
     if (!identity) continue;
     const games = Number(r.games);
     const wins = Number(r.wins);
     const games7d = Number(r.games7d);
     const wins7d = Number(r.wins7d);
     const wr = winrate(wins, games);
-    const form = await getRecentForm(client, r.puuid, 5, queueIds);
+    const form = forms.get(r.puuid) ?? [];
     entries.push({
       identity,
       games,
@@ -230,16 +237,17 @@ export async function getCrewDashboard(
   client: Queryable,
   crewId: string,
   slug: QueueSlug = "all",
+  knownPuuids?: string[],
 ): Promise<CrewDashboard | null> {
   const crew = await getCrewSummary(client, crewId);
   if (!crew) return null;
-  const puuids = await getCrewMemberPuuids(client, crewId);
+  // Reuse puuids the caller already fetched (avoids a duplicate query per dashboard).
+  const puuids = knownPuuids ?? (await getCrewMemberPuuids(client, crewId));
 
-  const members: PlayerIdentity[] = [];
-  for (const p of puuids) {
-    const id = await getIdentity(client, p);
-    if (id) members.push(id);
-  }
+  const identityMap = await getIdentities(client, puuids);
+  const members: PlayerIdentity[] = puuids
+    .map((p) => identityMap.get(p))
+    .filter((x): x is PlayerIdentity => !!x);
 
   const [leaderboard, cards, synergies, lineups, flexRoles, activity] = await Promise.all([
     getLeaderboard(client, puuids, slug),

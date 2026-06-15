@@ -33,14 +33,16 @@ export default async function CrewDashboardPage({
 
   const crew = await getCrewBySlug(slug);
   if (!crew) notFound();
-  const d = await getCrewDashboard(getPool(), crew.id, queue);
-  if (!d) notFound();
+  // Fetch member puuids once, then run the dashboard + queue-independent panels in
+  // parallel (was a 3-step waterfall, and puuids was queried twice per load).
   const puuids = await getCrewMemberPuuids(getPool(), crew.id);
-  const [awards, roleMatrix, tags] = await Promise.all([
+  const [d, awards, roleMatrix, tags] = await Promise.all([
+    getCrewDashboard(getPool(), crew.id, queue, puuids),
     getCrewAwards(getPool(), puuids),
     getCrewRoleMatrix(getPool(), puuids),
     getCrewTags(getPool(), puuids),
   ]);
+  if (!d) notFound();
 
   const inviteUrl = `${env().NEXT_PUBLIC_BASE_URL}/join/${crew.invite_code}`;
   const basePath = `/stack/${slug}`;

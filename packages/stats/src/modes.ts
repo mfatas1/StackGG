@@ -133,6 +133,71 @@ export async function getIdentity(client: Queryable, puuid: string): Promise<Pla
   };
 }
 
+/** Batched identity lookup — one query for many puuids (replaces per-member getIdentity loops). */
+export async function getIdentities(
+  client: Queryable,
+  puuids: string[],
+): Promise<Map<string, PlayerIdentity>> {
+  const map = new Map<string, PlayerIdentity>();
+  if (puuids.length === 0) return map;
+  const rows = await query<{
+    puuid: string;
+    riot_id: string;
+    tag: string;
+    region: string;
+    profile_icon: number | null;
+    is_stale: boolean;
+  }>(
+    `SELECT puuid, riot_id, tag, region, profile_icon, is_stale FROM riot_accounts WHERE puuid = ANY($1)`,
+    [puuids],
+    client,
+  );
+  for (const r of rows) {
+    map.set(r.puuid, {
+      puuid: r.puuid,
+      riotId: r.riot_id,
+      tag: r.tag,
+      region: r.region,
+      profileIcon: r.profile_icon,
+      isStale: r.is_stale,
+    });
+  }
+  return map;
+}
+
+/** Batched recent form — one windowed query for many puuids, most-recent-first per puuid. */
+export async function getRecentForms(
+  client: Queryable,
+  puuids: string[],
+  limit = 5,
+  queueIds: number[] | null = null,
+): Promise<Map<string, ("W" | "L")[]>> {
+  const map = new Map<string, ("W" | "L")[]>();
+  if (puuids.length === 0) return map;
+  const params: unknown[] = [puuids, limit];
+  const queueClause = queueIds ? "AND m.queue_id = ANY($3::int[])" : "";
+  if (queueIds) params.push(queueIds);
+  const rows = await query<{ puuid: string; win: boolean }>(
+    `SELECT puuid, win FROM (
+       SELECT mp.puuid, mp.win,
+         row_number() OVER (PARTITION BY mp.puuid ORDER BY m.game_start DESC) AS rn
+       FROM match_participants mp
+       JOIN matches m ON m.match_id = mp.match_id
+       WHERE mp.puuid = ANY($1) AND ${NOT_REMAKE_SQL} ${queueClause}
+     ) t
+     WHERE rn <= $2
+     ORDER BY puuid, rn`,
+    params,
+    client,
+  );
+  for (const r of rows) {
+    const arr = map.get(r.puuid) ?? [];
+    arr.push(r.win ? "W" : "L");
+    map.set(r.puuid, arr);
+  }
+  return map;
+}
+
 export async function getRanks(
   client: Queryable,
   puuid: string,

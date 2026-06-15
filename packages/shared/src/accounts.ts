@@ -35,6 +35,13 @@ export async function resolveAndUpsertAccount(
 ): Promise<RiotAccountRow> {
   const parsed = parseRiotId(riotId);
   if (!parsed) throw new Error(`Invalid Riot ID: "${riotId}" (expected name#tag)`);
+
+  // DB-first: a Riot ID → PUUID mapping is stable, so skip the rate-limited account-v1
+  // call when we already have a (non-stale) row. A rename simply misses here and falls
+  // through to Riot. This removes one Riot call from every snapshot/crew page load.
+  const cached = await findAccountByRiotId(parsed.name, parsed.tag, db);
+  if (cached && !cached.is_stale) return cached;
+
   const client = getRiotClient();
   const account = await client.getAccountByRiotId(parsed.name, parsed.tag, platform);
 
@@ -62,26 +69,31 @@ export async function refreshAccountRanks(puuid: string, platform: string, db: Q
   const client = getRiotClient();
   let profileIcon: number | null = null;
   let summonerId: string | null = null;
-  try {
-    const summoner = await client.getSummonerByPuuid(puuid, platform);
-    profileIcon = summoner.profileIconId ?? null;
-    summonerId = summoner.id ?? null;
-  } catch (err) {
-    if (!(err instanceof RiotApiError && err.status === 404)) throw err;
-  }
-
   let rankSolo: RankInfo | null = null;
   let rankFlex: RankInfo | null = null;
-  try {
-    const entries = await client.getLeagueEntriesByPuuid(puuid, platform);
-    for (const e of entries) {
+
+  // Summoner (icon) and league entries (rank) are independent — fetch in parallel.
+  const [summonerRes, entriesRes] = await Promise.allSettled([
+    client.getSummonerByPuuid(puuid, platform),
+    client.getLeagueEntriesByPuuid(puuid, platform),
+  ]);
+
+  if (summonerRes.status === "fulfilled") {
+    profileIcon = summonerRes.value.profileIconId ?? null;
+    summonerId = summonerRes.value.id ?? null;
+  } else if (!(summonerRes.reason instanceof RiotApiError && summonerRes.reason.status === 404)) {
+    throw summonerRes.reason;
+  }
+
+  if (entriesRes.status === "fulfilled") {
+    for (const e of entriesRes.value) {
       const target = QUEUE_TO_RANK[e.queueType];
       const info: RankInfo = { tier: e.tier, rank: e.rank, lp: e.leaguePoints, wins: e.wins, losses: e.losses };
       if (target === "rank_solo") rankSolo = info;
       else if (target === "rank_flex") rankFlex = info;
     }
-  } catch (err) {
-    if (!(err instanceof RiotApiError && err.status === 404)) throw err;
+  } else if (!(entriesRes.reason instanceof RiotApiError && entriesRes.reason.status === 404)) {
+    throw entriesRes.reason;
   }
 
   await db.query(

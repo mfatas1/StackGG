@@ -2,16 +2,10 @@ import { query, type Queryable } from "@crewstats/shared";
 import type { DuoSynergy, FlexRoleStat, QueueSlug, PlayerIdentity, CrewLineup } from "@crewstats/shared";
 import { QUEUES } from "@crewstats/shared";
 import { winrate, queueIdsForSlug } from "./util.js";
-import { getIdentity } from "./modes.js";
+import { getIdentities } from "./modes.js";
 
-async function identityMap(client: Queryable, puuids: string[]): Promise<Map<string, PlayerIdentity>> {
-  const map = new Map<string, PlayerIdentity>();
-  for (const p of puuids) {
-    const id = await getIdentity(client, p);
-    if (id) map.set(p, id);
-  }
-  return map;
-}
+const identityMap = (client: Queryable, puuids: string[]): Promise<Map<string, PlayerIdentity>> =>
+  getIdentities(client, puuids);
 
 /** Per-member games/wins within a queue filter, for "winrate apart" math. */
 async function memberTotals(
