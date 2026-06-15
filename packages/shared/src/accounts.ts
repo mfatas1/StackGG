@@ -25,6 +25,49 @@ export async function findAccountByRiotId(
 }
 
 /**
+ * Move an account's identity from an old PUUID to a new one, preserving everything.
+ *
+ * PUUIDs are scoped to the Riot API key that minted them: when the key is rotated
+ * (e.g. a dev key expiring, or switching to a production key) the same Riot ID
+ * resolves to a NEW PUUID and the old one stops decrypting (match-v5 → 400). This
+ * repoints the account's match history and crew memberships onto the new PUUID — the
+ * per-game stats are key-independent, so history is kept, not re-downloaded. Idempotent:
+ * a no-op when old === new, and safe to re-run.
+ */
+export async function remapAccountPuuid(oldPuuid: string, newPuuid: string, db: Queryable = getPool()): Promise<void> {
+  if (oldPuuid === newPuuid) return;
+  // 1. Clone the account row onto the new PUUID (carry the claim, ranks, icon, etc.).
+  await db.query(
+    `INSERT INTO riot_accounts
+       (puuid, riot_id, tag, region, summoner_id, profile_icon, claimed_by_user_id,
+        last_polled_at, last_backfilled_at, rank_solo, rank_flex, is_stale, created_at)
+     SELECT $2, riot_id, tag, region, summoner_id, profile_icon, claimed_by_user_id,
+        last_polled_at, last_backfilled_at, rank_solo, rank_flex, false, created_at
+       FROM riot_accounts WHERE puuid = $1
+     ON CONFLICT (puuid) DO UPDATE SET is_stale = false`,
+    [oldPuuid, newPuuid],
+  );
+  // 2. Repoint match history (keep the stats), skipping rows that would collide.
+  await db.query(
+    `UPDATE match_participants mp SET puuid = $2
+      WHERE mp.puuid = $1
+        AND NOT EXISTS (SELECT 1 FROM match_participants x WHERE x.match_id = mp.match_id AND x.puuid = $2)`,
+    [oldPuuid, newPuuid],
+  );
+  await db.query(`DELETE FROM match_participants WHERE puuid = $1`, [oldPuuid]);
+  // 3. Repoint crew memberships, again avoiding (crew_id, puuid) collisions.
+  await db.query(
+    `UPDATE crew_members cm SET puuid = $2
+      WHERE cm.puuid = $1
+        AND NOT EXISTS (SELECT 1 FROM crew_members x WHERE x.crew_id = cm.crew_id AND x.puuid = $2)`,
+    [oldPuuid, newPuuid],
+  );
+  await db.query(`DELETE FROM crew_members WHERE puuid = $1`, [oldPuuid]);
+  // 4. Drop the now-orphaned old account row.
+  await db.query(`DELETE FROM riot_accounts WHERE puuid = $1`, [oldPuuid]);
+}
+
+/**
  * Resolve a Riot ID to a PUUID via account-v1 and upsert the riot_accounts row.
  * Returns the stored row. Throws RiotApiError(404) if the Riot ID doesn't exist.
  */
@@ -47,6 +90,13 @@ export async function resolveAndUpsertAccount(
 
   const gameName = account.gameName ?? parsed.name;
   const tagLine = account.tagLine ?? parsed.tag;
+
+  // If this Riot ID was previously stored under a different PUUID (a key rotation
+  // re-minted it), migrate the old identity onto the new PUUID before we upsert — so
+  // history and crew membership survive instead of forking onto a fresh, empty row.
+  if (cached && cached.puuid !== account.puuid) {
+    await remapAccountPuuid(cached.puuid, account.puuid, db);
+  }
 
   const row = await queryOne<RiotAccountRow>(
     `INSERT INTO riot_accounts (puuid, riot_id, tag, region)
