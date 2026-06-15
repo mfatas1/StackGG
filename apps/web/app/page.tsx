@@ -37,10 +37,15 @@ export default function Landing() {
     <>
       <SmoothScroll />
 
+      {/* Global legibility veil over the Rift so copy on every fold reads. Flat + fixed
+          so it's consistent at any scroll position; the Rift still shows through. */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-[2] bg-bg/55" />
+
       {/* Fold 1 — the descent */}
       <section className="relative mx-auto grid min-h-[92vh] max-w-6xl items-center gap-12 px-4 pb-16 pt-20 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
-        {/* legibility scrim so the hero copy reads over the bright lane */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 -z-[1] bg-[radial-gradient(85%_90%_at_24%_44%,oklch(var(--bg)/0.94),oklch(var(--bg)/0.6)_48%,transparent_78%)]" />
+        {/* Hero scrim — FULL-BLEED (breaks out of the centered container) so it never
+            cuts off with a hard edge on wide screens. Fades right so the ladder shows Rift. */}
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 left-1/2 -z-[1] w-screen -translate-x-1/2 bg-[radial-gradient(58%_92%_at_30%_46%,oklch(var(--bg)/0.9),oklch(var(--bg)/0.5)_46%,transparent_72%)]" />
         <div>
           <h1 className="font-display text-[clamp(2.5rem,6.5vw,5rem)] font-extrabold leading-[0.98] tracking-[-0.03em]">
             Settle it. <span className="text-primary">As a stack.</span>
