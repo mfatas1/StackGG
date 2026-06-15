@@ -1,0 +1,22 @@
+# Web (Next.js) production image — used by the Railway "web" service and docker-compose.
+# Self-contained single-target build so the host never has to pick a --target.
+FROM node:22-slim AS build
+WORKDIR /app
+# Install ALL deps (incl. dev) — the Next build toolchain (typescript, tailwind…) lives in devDependencies.
+COPY package.json package-lock.json* ./
+COPY packages/shared/package.json packages/shared/
+COPY packages/stats/package.json packages/stats/
+COPY apps/web/package.json apps/web/
+COPY apps/worker/package.json apps/worker/
+RUN npm install --no-audit --no-fund
+COPY . .
+# NEXT_PUBLIC_BASE_URL is inlined at build time, so it must be present here (Railway injects service vars at build).
+RUN npm run build --workspace apps/web
+
+FROM node:22-slim AS run
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app ./
+# Railway provides $PORT; `start` honors it and falls back to 3100 locally.
+EXPOSE 3100
+CMD ["npm", "run", "start", "--workspace", "apps/web"]

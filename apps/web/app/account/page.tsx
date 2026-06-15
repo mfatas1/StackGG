@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Plus, Crown, Users2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { getUserCrews } from "@/lib/crews";
-import { SignInForm } from "@/components/Forms";
+import { SignInForm } from "@/components/forms";
 import { Frame, Empty } from "@/components/kit/Frame";
 import { Button } from "@/components/kit/Button";
 import { RoutePose } from "@/components/rift/RoutePose";

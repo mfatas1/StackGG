@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { SignInForm } from "@/components/Forms";
+import { SignInForm } from "@/components/forms";
 import { Frame } from "@/components/kit/Frame";
 import { RoutePose } from "@/components/rift/RoutePose";
 
