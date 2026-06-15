@@ -8,23 +8,33 @@ import { getCrewBySlug } from "@/lib/crews";
 import { getCrewDashboard, getCrewAwards, getCrewRoleMatrix, getCrewMemberPuuids, getCrewTags } from "@crewstats/stats";
 
 /**
- * Cached dashboard payload. The page is force-dynamic (auth/cookies), but the heavy
- * crew aggregations change only when a backfill/poll lands, so we serve them from the
- * data cache: tab switches and re-navigations within the TTL are instant instead of
- * recomputing every aggregation. Busted on manual Refresh (revalidateTag crew:<id>).
+ * Cached dashboard data. The page is force-dynamic (auth/cookies), but the heavy crew
+ * aggregations change only when a backfill/poll lands, so we serve them from the data
+ * cache and bust on manual Refresh (revalidateTag crew:<id>).
+ *
+ * Split into two caches because awards/role-matrix/tags are queue-INDEPENDENT: keyed
+ * on the crew only, they're reused across every tab. Only the leaderboard (getCrewDashboard)
+ * is keyed on the queue. So switching tabs no longer recomputes the ~25 award scans.
  */
-function loadDashboard(crewId: string, queue: QueueSlug, puuids: string[]) {
+function loadPanels(crewId: string, puuids: string[]) {
   return unstable_cache(
     async () => {
-      const [d, awards, roleMatrix, tags] = await Promise.all([
-        getCrewDashboard(getPool(), crewId, queue, puuids),
+      const [awards, roleMatrix, tags] = await Promise.all([
         getCrewAwards(getPool(), puuids),
         getCrewRoleMatrix(getPool(), puuids),
         getCrewTags(getPool(), puuids),
       ]);
-      return { d, awards, roleMatrix, tags };
+      return { awards, roleMatrix, tags };
     },
-    ["crew-dashboard", crewId, queue, puuids.join(",")],
+    ["crew-panels", crewId, puuids.join(",")],
+    { revalidate: 30, tags: [`crew:${crewId}`] },
+  )();
+}
+
+function loadDashboardForQueue(crewId: string, queue: QueueSlug, puuids: string[]) {
+  return unstable_cache(
+    async () => getCrewDashboard(getPool(), crewId, queue, puuids),
+    ["crew-board", crewId, queue, puuids.join(",")],
     { revalidate: 30, tags: [`crew:${crewId}`] },
   )();
 }
@@ -60,8 +70,13 @@ export default async function CrewDashboardPage({
   // Fetch member puuids once, then run the dashboard + queue-independent panels in
   // parallel (was a 3-step waterfall, and puuids was queried twice per load).
   const puuids = await getCrewMemberPuuids(getPool(), crew.id);
-  const { d, awards, roleMatrix, tags } = await loadDashboard(crew.id, queue, puuids);
+  // Panels are reused across tabs (queue-independent); only the board re-keys on queue.
+  const [d, panels] = await Promise.all([
+    loadDashboardForQueue(crew.id, queue, puuids),
+    loadPanels(crew.id, puuids),
+  ]);
   if (!d) notFound();
+  const { awards, roleMatrix, tags } = panels;
 
   const inviteUrl = `${env().NEXT_PUBLIC_BASE_URL}/join/${crew.invite_code}`;
   const basePath = `/stack/${slug}`;
