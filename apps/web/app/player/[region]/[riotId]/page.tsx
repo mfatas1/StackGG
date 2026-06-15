@@ -10,6 +10,7 @@ import { Button } from "@/components/kit/Button";
 import { ModeCards } from "@/components/board/ModeCards";
 import { MatchList } from "@/components/board/MatchList";
 import { BackfillBanner } from "@/components/board/BackfillBanner";
+import { RefreshProfileButton } from "@/components/board/RefreshProfileButton";
 import { QueueTabs, parseQueueSlug } from "@/components/kit/Tabs";
 import { PlayerLink } from "@/components/kit/links";
 import { RoutePose } from "@/components/rift/RoutePose";
@@ -22,10 +23,10 @@ export default async function PlayerSnapshot({
   searchParams,
 }: {
   params: Promise<{ region: string; riotId: string }>;
-  searchParams: Promise<{ q?: string; champ?: string }>;
+  searchParams: Promise<{ q?: string; champ?: string; refreshing?: string }>;
 }) {
   const { region, riotId: raw } = await params;
-  const { q, champ } = await searchParams;
+  const { q, champ, refreshing } = await searchParams;
   const riotId = decodeURIComponent(raw);
   const result = await getOrBuildSnapshot(riotId, region);
 
@@ -56,7 +57,7 @@ export default async function PlayerSnapshot({
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
       <RoutePose name="surface" />
 
-      <BackfillBanner active={result.backfilling} games={totalGames} />
+      <BackfillBanner active={result.backfilling || refreshing === "1"} games={totalGames} />
 
       <Frame as="header">
         <div className="flex flex-wrap items-center gap-4 p-5">
@@ -85,6 +86,7 @@ export default async function PlayerSnapshot({
             <span className="text-2xs text-ink-faint">Form</span>
             <WLPills form={s.recentForm.slice(0, 5)} />
           </div>
+          <RefreshProfileButton riotId={riotId} region={region} />
         </div>
       </Frame>
 
