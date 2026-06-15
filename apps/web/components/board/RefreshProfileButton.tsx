@@ -29,7 +29,12 @@ export function RefreshProfileButton({ riotId, region }: { riotId: string; regio
         setLoading(false);
         return;
       }
+      // The re-pull is now queued; the work happens in the background worker and is
+      // surfaced by the download banner (?refreshing=1), not this button. Stop our own
+      // spinner so it doesn't hang forever — a soft nav to the same route keeps this
+      // component mounted, so we must clear loading explicitly.
       router.push(`${pathname}?refreshing=1`);
+      setLoading(false);
     } catch {
       setErr("Couldn't refresh.");
       setLoading(false);
