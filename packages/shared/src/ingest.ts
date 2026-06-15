@@ -48,6 +48,22 @@ export interface BackfillResult {
  * Deduplicates: a match already having this puuid's participant row is skipped,
  * so shared games are fetched once (PLAN hard rule #5).
  */
+// Overlap per-match HTTP latency. The RiotClient limiter still enforces the global
+// rate cap (20/s, 100/2min) — concurrency just stops us waiting on one socket at a time.
+const FETCH_CONCURRENCY = 6;
+
+/** Run async work over items with at most `limit` in flight at once. */
+async function mapWithConcurrency<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      await fn(items[idx]!);
+    }
+  });
+  await Promise.all(workers);
+}
+
 export async function backfillMember(opts: BackfillOptions): Promise<BackfillResult> {
   const client = opts.client ?? getRiotClient();
   const db = opts.db ?? getPool();
@@ -57,22 +73,26 @@ export async function backfillMember(opts: BackfillOptions): Promise<BackfillRes
   const tracked = opts.trackedPuuids ?? new Set([opts.puuid]);
   const quick = opts.recentOnlyPerQueue;
 
-  const ids = new Set<string>();
-  for (const queue of TRACKED_QUEUE_IDS) {
-    if (quick) {
-      const page = await client.getMatchIds(opts.puuid, opts.platform, { queue, startTime, start: 0, count: quick });
-      for (const id of page) ids.add(id);
-      continue;
-    }
-    let start = 0;
-    for (;;) {
-      const page = await client.getMatchIds(opts.puuid, opts.platform, { queue, startTime, start, count: 100 });
-      for (const id of page) ids.add(id);
-      if (page.length < 100) break;
-      start += 100;
-    }
-  }
-  const allIds = [...ids];
+  // Collect match IDs across the 4 tracked queues in parallel (independent calls).
+  const perQueue = await Promise.all(
+    TRACKED_QUEUE_IDS.map(async (queue) => {
+      const out: string[] = [];
+      if (quick) {
+        const page = await client.getMatchIds(opts.puuid, opts.platform, { queue, startTime, start: 0, count: quick });
+        out.push(...page);
+        return out;
+      }
+      let start = 0;
+      for (;;) {
+        const page = await client.getMatchIds(opts.puuid, opts.platform, { queue, startTime, start, count: 100 });
+        out.push(...page);
+        if (page.length < 100) break;
+        start += 100;
+      }
+      return out;
+    }),
+  );
+  const allIds = [...new Set(perQueue.flat())];
 
   let toFetch = allIds;
   if (allIds.length) {
@@ -87,12 +107,12 @@ export async function backfillMember(opts: BackfillOptions): Promise<BackfillRes
 
   let fetched = 0;
   let participantsWritten = 0;
-  for (const id of toFetch) {
+  await mapWithConcurrency(toFetch, FETCH_CONCURRENCY, async (id) => {
     const match = await client.getMatch(id, opts.platform);
     const res = await persistMatch(db, match, tracked, { storeRaw: opts.storeRaw });
     fetched++;
     participantsWritten += res.participantsWritten;
-  }
+  });
 
   await db.query(`UPDATE riot_accounts SET last_backfilled_at = now(), last_polled_at = now() WHERE puuid = $1`, [
     opts.puuid,
