@@ -29,6 +29,17 @@ interface RawParticipant {
   playerSubteamId?: number;
   placement?: number;
   subteamPlacement?: number;
+  // rich stats for the carry/MVP score
+  totalDamageTaken?: number;
+  damageSelfMitigated?: number;
+  totalHealsOnTeammates?: number;
+  totalDamageShieldedOnTeammates?: number;
+  timeCCingOthers?: number;
+  visionScore?: number;
+  largestKillingSpree?: number;
+  largestMultiKill?: number;
+  objectivesStolen?: number;
+  challenges?: { teamDamagePercentage?: number; soloKills?: number; saveAllyFromDeathTakedowns?: number };
 }
 interface RawInfo {
   queueId: number;
@@ -53,6 +64,19 @@ function mapPlayers(participants: RawParticipant[]) {
     teamId: p.teamId,
     subteamId: p.playerSubteamId ?? null,
     placement: p.placement ?? p.subteamPlacement ?? null,
+    // rich carry-score inputs
+    teamDamagePct: p.challenges?.teamDamagePercentage ?? null,
+    damageTaken: p.totalDamageTaken ?? 0,
+    selfMitigated: p.damageSelfMitigated ?? 0,
+    healTeammates: p.totalHealsOnTeammates ?? 0,
+    shieldTeammates: p.totalDamageShieldedOnTeammates ?? 0,
+    ccTime: p.timeCCingOthers ?? 0,
+    visionScore: p.visionScore ?? 0,
+    killingSpree: p.largestKillingSpree ?? 0,
+    multikill: p.largestMultiKill ?? 0,
+    soloKills: p.challenges?.soloKills ?? 0,
+    objectivesStolen: p.objectivesStolen ?? 0,
+    allySaves: p.challenges?.saveAllyFromDeathTakedowns ?? 0,
   }));
 }
 

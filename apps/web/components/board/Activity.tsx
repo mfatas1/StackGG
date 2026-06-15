@@ -6,9 +6,9 @@ import { ChampIcon } from "../kit/Avatar";
 import { Empty } from "../kit/Frame";
 import { MatchScoreboard } from "./MatchScoreboard";
 import { timeAgo, gameDuration, placementSuffix } from "@/lib/format";
+import { mvpOf } from "@/lib/carry";
 
 const QUEUE_NAME: Record<string, string> = { ranked: "Ranked Solo", flex: "Ranked Flex", aram: "ARAM", arena: "Arena", all: "Game" };
-const carry = (m: { kills: number; assists: number; deaths: number }) => (m.kills * 2 + m.assists) / Math.max(1, m.deaths);
 
 /** Recent shared games — expand any to see the full lobby with the crew emphasised. */
 export function Activity({ items, crewSlug }: { items: ActivityItem[]; crewSlug?: string }) {
@@ -26,7 +26,7 @@ export function Activity({ items, crewSlug }: { items: ActivityItem[]; crewSlug?
 function ActivityRow({ m }: { m: ActivityItem }) {
   const [open, setOpen] = useState(false);
   const arena = m.queueSlug === "arena";
-  const carrierPuuid = m.members.reduce((best, p) => (carry(p) > carry(best) ? p : best), m.members[0]!)?.puuid;
+  const carrierPuuid = mvpOf(m.members)?.puuid;
 
   return (
     <li className="notch notch-sm border border-line/50 bg-surface-2/40">

@@ -4,8 +4,9 @@ import { Crown } from "lucide-react";
 import { ChampIcon } from "../kit/Avatar";
 import { PlayerLink } from "../kit/links";
 import { placementSuffix } from "@/lib/format";
+import { mvpOf, type CarryStats } from "@/lib/carry";
 
-interface ScorePlayer {
+interface ScorePlayer extends CarryStats {
   puuid: string;
   riotId: string;
   tag: string;
@@ -31,7 +32,6 @@ interface MatchData {
 }
 
 const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`);
-const carryScore = (l: ScorePlayer) => (l.kills * 2 + l.assists) / Math.max(1, l.deaths) + l.damage / 10000;
 
 /**
  * The full game lobby — all players, not just the crew (fetched on demand from
@@ -121,8 +121,7 @@ export function MatchScoreboard({
   // SR / ARAM: two teams.
   const teams = [100, 200].map((tid) => {
     const roster = data.players.filter((p) => p.teamId === tid);
-    const mvp = roster.reduce<ScorePlayer | null>((best, p) => (!best || carryScore(p) > carryScore(best) ? p : best), null);
-    return { tid, roster, win: roster[0]?.win ?? false, mvpPuuid: mvp?.puuid };
+    return { tid, roster, win: roster[0]?.win ?? false, mvpPuuid: mvpOf(roster)?.puuid };
   });
 
   return (
