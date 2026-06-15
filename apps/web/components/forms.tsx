@@ -1,9 +1,9 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Mail, Check, Search, Clock } from "lucide-react";
+import { ArrowRight, Mail, Check, Search, Clock, ChevronDown } from "lucide-react";
 import { Button } from "./kit/Button";
-import { Input, Select, Field } from "./kit/Field";
+import { Input, Field } from "./kit/Field";
 import { ProfileIcon } from "./kit/Avatar";
 
 export const REGIONS = [
@@ -28,19 +28,92 @@ function RegionSelect({
   onChange: (v: string) => void;
   size?: "md" | "lg";
 }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(-1);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = REGIONS.find((r) => r.value === value) ?? REGIONS[0]!;
+  const tall = size === "lg";
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  function choose(v: string) {
+    onChange(v);
+    setOpen(false);
+  }
+  function toggle() {
+    setHi(REGIONS.findIndex((r) => r.value === value));
+    setOpen((o) => !o);
+  }
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (!open && (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      setHi(REGIONS.findIndex((r) => r.value === value));
+      setOpen(true);
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHi((h) => Math.min(h + 1, REGIONS.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHi((h) => Math.max(h - 1, 0));
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (hi >= 0) choose(REGIONS[hi]!.value);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  }
+
   return (
-    <Select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label="Region"
-      className={size === "lg" ? "h-13 text-base sm:h-14" : ""}
-    >
-      {REGIONS.map((r) => (
-        <option key={r.value} value={r.value}>
-          {r.label}
-        </option>
-      ))}
-    </Select>
+    <div ref={ref} className="relative flex">
+      <button
+        type="button"
+        onClick={toggle}
+        onKeyDown={onKeyDown}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Region"
+        className={`notch notch-sm flex w-full items-center justify-between gap-2 border border-line bg-surface-2/80 pl-3.5 pr-3 font-medium text-ink backdrop-blur transition-colors hover:border-primary/40 focus:border-primary/60 focus:outline-none ${
+          tall ? "h-13 min-w-[5rem] text-base sm:h-14" : "h-11 min-w-[4.5rem] text-sm"
+        }`}
+      >
+        {current.label}
+        <ChevronDown className={`h-4 w-4 shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label="Region"
+          className="notch notch-sm absolute right-0 top-full z-30 mt-1.5 max-h-72 w-full min-w-[7.5rem] overflow-auto border border-line bg-bg/95 py-1 shadow-[0_12px_32px_oklch(0_0_0/0.5)] backdrop-blur-md"
+        >
+          {REGIONS.map((r, i) => (
+            <li
+              key={r.value}
+              role="option"
+              aria-selected={r.value === value}
+              onMouseEnter={() => setHi(i)}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                choose(r.value);
+              }}
+              className={`flex cursor-pointer items-center justify-between px-3.5 py-2 text-sm ${
+                i === hi ? "bg-surface-3" : "hover:bg-surface-2"
+              } ${r.value === value ? "font-medium text-primary" : "text-ink"}`}
+            >
+              {r.label}
+              {r.value === value && <Check className="h-3.5 w-3.5 shrink-0" />}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -152,7 +225,7 @@ export function RiotIdForm({ size = "md" }: { size?: "md" | "lg" }) {
         <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-ink-faint" />
         <Input
           className={size === "lg" ? "h-13 pl-9 text-base sm:h-14" : "pl-9"}
-          placeholder="Riot ID — e.g. StackMember1#5418"
+          placeholder="Riot ID"
           value={riotId}
           onChange={(e) => {
             setRiotId(e.target.value);
