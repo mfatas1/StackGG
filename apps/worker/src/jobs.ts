@@ -33,7 +33,14 @@ export async function handleBackfillMember(data: BackfillMemberJob): Promise<voi
     tracked = new Set(members.map((m) => m.puuid));
     tracked.add(data.puuid);
   }
-  const res = await backfillMember({ puuid: data.puuid, platform, days: data.days ?? 90, trackedPuuids: tracked, storeRaw });
+  const res = await backfillMember({
+    puuid: data.puuid,
+    platform,
+    days: data.days ?? 90,
+    incremental: data.incremental,
+    trackedPuuids: tracked,
+    storeRaw,
+  });
   console.log(`[backfill] ${data.puuid.slice(0, 10)}… fetched ${res.fetched}/${res.candidateMatchIds} matches, ${res.participantsWritten} rows`);
   try {
     await refreshAccountRanks(data.puuid, platform);
