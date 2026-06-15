@@ -82,7 +82,7 @@ export function Ladder({
             <motion.div
               key={e.identity.puuid}
               layout={!reduce}
-              transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
               role="row"
               className={`notch notch-sm grid ${COLS} items-center gap-3 border px-3 py-2.5 transition-colors ${
                 top ? "border-gold/40 bg-gold/[0.07]" : "border-line/60 bg-surface-2/40 hover:bg-surface-3/50"

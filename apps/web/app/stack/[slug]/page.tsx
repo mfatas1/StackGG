@@ -5,52 +5,74 @@ import { Settings } from "lucide-react";
 import { getPool, env } from "@crewstats/shared";
 import type { QueueSlug } from "@crewstats/shared";
 import { getCrewBySlug } from "@/lib/crews";
-import { getCrewDashboard, getCrewAwards, getCrewRoleMatrix, getCrewMemberPuuids, getCrewTags } from "@crewstats/stats";
-
-/**
- * Cached dashboard data. The page is force-dynamic (auth/cookies), but the heavy crew
- * aggregations change only when a backfill/poll lands, so we serve them from the data
- * cache and bust on manual Refresh (revalidateTag crew:<id>).
- *
- * Split into two caches because awards/role-matrix/tags are queue-INDEPENDENT: keyed
- * on the crew only, they're reused across every tab. Only the leaderboard (getCrewDashboard)
- * is keyed on the queue. So switching tabs no longer recomputes the ~25 award scans.
- */
-function loadPanels(crewId: string, puuids: string[]) {
-  return unstable_cache(
-    async () => {
-      const [awards, roleMatrix, tags] = await Promise.all([
-        getCrewAwards(getPool(), puuids),
-        getCrewRoleMatrix(getPool(), puuids),
-        getCrewTags(getPool(), puuids),
-      ]);
-      return { awards, roleMatrix, tags };
-    },
-    ["crew-panels", crewId, puuids.join(",")],
-    { revalidate: 30, tags: [`crew:${crewId}`] },
-  )();
-}
-
-function loadDashboardForQueue(crewId: string, queue: QueueSlug, puuids: string[]) {
-  return unstable_cache(
-    async () => getCrewDashboard(getPool(), crewId, queue, puuids),
-    ["crew-board", crewId, queue, puuids.join(",")],
-    { revalidate: 30, tags: [`crew:${crewId}`] },
-  )();
-}
-import { QueueTabs, parseQueueSlug } from "@/components/kit/Tabs";
+import {
+  getCrewDashboard,
+  getCrewAwards,
+  getCrewRoleMatrix,
+  getCrewMemberPuuids,
+  getCrewTags,
+  getLeaderboard,
+  getActivity,
+} from "@crewstats/stats";
+import { parseQueueSlug } from "@/components/kit/Tabs";
 import { Frame, Section, PanelHead } from "@/components/kit/Frame";
 import { AvatarStack } from "@/components/kit/Avatar";
 import { CopyInvite, RefreshButton } from "@/components/CrewControls";
 import { RoutePose } from "@/components/rift/RoutePose";
 import { JoinWelcome } from "@/components/brand/JoinWelcome";
 import { StatRail } from "@/components/board/StatRail";
-import { Ladder } from "@/components/board/Ladder";
 import { SynergyExplorer } from "@/components/board/SynergyExplorer";
-import { Activity } from "@/components/board/Activity";
 import { Awards } from "@/components/board/Awards";
 import { RoleMatrix } from "@/components/board/RoleMatrix";
 import { RiftMap } from "@/components/board/RiftMap";
+import { QueueProvider, QueueTabsClient, LadderForQueue, ActivityForQueue } from "@/components/board/QueueBoard";
+import type { QueueBoards } from "@/components/board/QueueBoard";
+
+const QUEUE_SLUGS: QueueSlug[] = ["all", "ranked", "flex", "aram", "arena"];
+
+/**
+ * Queue-INDEPENDENT base + panels (crew, members, cards, lineups, flex roles, awards,
+ * role matrix, tags), cached on the crew. Computed via getCrewDashboard("all"); only its
+ * queue-independent fields are used — the per-queue boards come from loadBoards.
+ */
+function loadBase(crewId: string, puuids: string[]) {
+  return unstable_cache(
+    async () => {
+      const [d, awards, roleMatrix, tags] = await Promise.all([
+        getCrewDashboard(getPool(), crewId, "all", puuids),
+        getCrewAwards(getPool(), puuids),
+        getCrewRoleMatrix(getPool(), puuids),
+        getCrewTags(getPool(), puuids),
+      ]);
+      return { d, awards, roleMatrix, tags };
+    },
+    ["crew-base", crewId, puuids.join(",")],
+    { revalidate: 30, tags: [`crew:${crewId}`] },
+  )();
+}
+
+/**
+ * Per-queue leaderboard + activity for ALL queues, loaded once so the tabs switch in the
+ * browser with zero round-trips. Small payload (a few rows/queue); cached + busted on Refresh.
+ */
+function loadBoards(crewId: string, puuids: string[]) {
+  return unstable_cache(
+    async (): Promise<QueueBoards> => {
+      const entries = await Promise.all(
+        QUEUE_SLUGS.map(async (slug) => {
+          const [leaderboard, activity] = await Promise.all([
+            getLeaderboard(getPool(), puuids, slug),
+            getActivity(getPool(), puuids, slug, 20),
+          ]);
+          return [slug, { leaderboard, activity }] as const;
+        }),
+      );
+      return Object.fromEntries(entries) as QueueBoards;
+    },
+    ["crew-boards", crewId, puuids.join(",")],
+    { revalidate: 30, tags: [`crew:${crewId}`] },
+  )();
+}
 
 export const dynamic = "force-dynamic";
 
@@ -70,13 +92,11 @@ export default async function CrewDashboardPage({
   // Fetch member puuids once, then run the dashboard + queue-independent panels in
   // parallel (was a 3-step waterfall, and puuids was queried twice per load).
   const puuids = await getCrewMemberPuuids(getPool(), crew.id);
-  // Panels are reused across tabs (queue-independent); only the board re-keys on queue.
-  const [d, panels] = await Promise.all([
-    loadDashboardForQueue(crew.id, queue, puuids),
-    loadPanels(crew.id, puuids),
-  ]);
+  // Load the queue-independent base + all queues' boards once, both cached. Tab
+  // switching then happens entirely client-side (QueueProvider) — no round-trips.
+  const [base, boards] = await Promise.all([loadBase(crew.id, puuids), loadBoards(crew.id, puuids)]);
+  const { d, awards, roleMatrix, tags } = base;
   if (!d) notFound();
-  const { awards, roleMatrix, tags } = panels;
 
   const inviteUrl = `${env().NEXT_PUBLIC_BASE_URL}/join/${crew.invite_code}`;
   const basePath = `/stack/${slug}`;
@@ -108,10 +128,11 @@ export default async function CrewDashboardPage({
 
       <StatRail d={d} crewSlug={slug} />
 
-      <Section title="Leaderboard" action={<QueueTabs basePath={basePath} active={queue} />}>
+      <QueueProvider initial={queue} basePath={basePath}>
+      <Section title="Leaderboard" action={<QueueTabsClient />}>
         <Frame>
           <div className="p-3">
-            <Ladder entries={d.leaderboard} queue={queue} crewSlug={slug} tags={tags} />
+            <LadderForQueue boards={boards} crewSlug={slug} tags={tags} />
           </div>
         </Frame>
       </Section>
@@ -154,8 +175,9 @@ export default async function CrewDashboardPage({
       </Frame>
 
       <Section title="Recent shared games">
-        <Activity items={d.activity} />
+        <ActivityForQueue boards={boards} crewSlug={slug} />
       </Section>
+      </QueueProvider>
     </div>
   );
 }
