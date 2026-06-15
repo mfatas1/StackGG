@@ -164,6 +164,11 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   };
 
   const elig = aggs.filter((a) => a.games >= MIN_GAMES);
+  // Relative superlatives ("best/worst in the stack") only mean something with a real
+  // group to compare. With 1–2 eligible members one person wins every extreme (both
+  // "Int Andy" and "Cockroach"), so suppress them below this floor — identity tags
+  // (OTP / cursed champ) still show for solo and duo profiles.
+  const enough = elig.length >= 3;
   const wr = (a: Agg) => (a.games ? a.wins / a.games : 0);
   const kda = (a: Agg) => (a.avgKills + a.avgAssists) / Math.max(a.avgDeaths, 0.6);
 
@@ -175,6 +180,7 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
     t: { key: string; label: string; tone: TagTone; priority: number; meaning: string; detail: (a: Agg) => string },
     opts: { gate?: (a: Agg) => boolean; pool?: Agg[] } = {},
   ) => {
+    if (!enough) return;
     const pool = (opts.pool ?? elig).filter(opts.gate ?? (() => true));
     if (!pool.length) return;
     const holder = pool.reduce((b, a) => ((dir === "max" ? f(a) > f(b) : f(a) < f(b)) ? a : b));
@@ -199,18 +205,18 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   // Coinflip — closest to a perfect 50/50.
   {
     const pool = elig;
-    if (pool.length) {
+    if (enough && pool.length) {
       const h = pool.reduce((b, a) => (Math.abs(wr(a) - 0.5) < Math.abs(wr(b) - 0.5) ? a : b));
       add(h.puuid, { key: "coinflip", label: "Coinflip", tone: "neutral", priority: 88, meaning: "Win rate closest to a perfect 50/50 — a walking coin toss.", detail: `${pctStr(wr(h))} over ${h.games}g` });
     }
   }
   {
     const h = elig.map((a) => ({ a, s: winStreak.get(a.puuid) ?? 0 })).filter((x) => x.s >= 4).sort((x, y) => y.s - x.s)[0];
-    if (h) add(h.a.puuid, { key: "heater", label: "Heater", tone: "flex", priority: 72, meaning: "Longest win streak in the stack.", detail: `${h.s} wins in a row` });
+    if (enough && h) add(h.a.puuid, { key: "heater", label: "Heater", tone: "flex", priority: 72, meaning: "Longest win streak in the stack.", detail: `${h.s} wins in a row` });
   }
   {
     const h = elig.map((a) => ({ a, s: lossStreak.get(a.puuid) ?? 0 })).filter((x) => x.s >= 4).sort((x, y) => y.s - x.s)[0];
-    if (h) add(h.a.puuid, { key: "tilted", label: "Tilted", tone: "shame", priority: 84, meaning: "Longest losing streak in the stack — and kept queuing.", detail: `${h.s} losses in a row` });
+    if (enough && h) add(h.a.puuid, { key: "tilted", label: "Tilted", tone: "shame", priority: 84, meaning: "Longest losing streak in the stack — and kept queuing.", detail: `${h.s} losses in a row` });
   }
   {
     // In Form — best winrate over the last 15 games (min 8 to qualify).
@@ -218,7 +224,7 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
       .map((a) => ({ a, f: recentForm.get(a.puuid) }))
       .filter((x) => x.f && x.f.games >= 8)
       .map((x) => ({ a: x.a, wr: x.f!.wins / x.f!.games, n: x.f!.games }));
-    if (pool.length) {
+    if (enough && pool.length) {
       const h = pool.reduce((b, x) => (x.wr > b.wr || (x.wr === b.wr && x.n > b.n) ? x : b));
       add(h.a.puuid, { key: "inform", label: "In Form", tone: "flex", priority: 83, meaning: "Hottest recent form — best win rate over the last 15 games.", detail: `${pctStr(h.wr)} over last ${h.n}` });
     }
