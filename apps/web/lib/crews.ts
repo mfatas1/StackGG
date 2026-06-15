@@ -9,6 +9,7 @@ import {
   resolveAndUpsertAccount,
   refreshAccountRanks,
   backfillMember,
+  seasonStartDays,
   RiotApiError,
   type CrewRow,
 } from "@crewstats/shared";
@@ -109,7 +110,7 @@ export async function createCrew(input: {
   ]);
 
   await quickBackfill(account.puuid, input.region, new Set([account.puuid]));
-  await enqueueBackfill({ crewId: crew.id, puuid: account.puuid, platform: input.region, days: 90 });
+  await enqueueBackfill({ crewId: crew.id, puuid: account.puuid, platform: input.region, days: seasonStartDays() });
   await enqueueWeekly({ crewId: crew.id });
   return crew;
 }
@@ -146,7 +147,7 @@ export async function joinCrew(input: {
   tracked.add(account.puuid);
   if (!already) await quickBackfill(account.puuid, input.region, tracked);
 
-  await enqueueBackfill({ crewId: crew.id, puuid: account.puuid, platform: input.region, days: 90 });
+  await enqueueBackfill({ crewId: crew.id, puuid: account.puuid, platform: input.region, days: seasonStartDays() });
   await enqueuePollCrew({ crewId: crew.id });
   await enqueueWeekly({ crewId: crew.id });
   return crew;
