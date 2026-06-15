@@ -11,10 +11,41 @@ const display = Cinzel({ subsets: ["latin"], weight: ["600", "700", "800"], vari
 const sans = Hanken_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-sans", display: "swap" });
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-mono", display: "swap" });
 
+const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://stackgg.app";
+const tagline =
+  "op.gg tells you how you play. StackGG tells you how your group plays together. A shared stack page for your League squad, rendered inside the Rift.";
+
 export const metadata: Metadata = {
-  title: "StackGG — settle it, as a stack",
-  description:
-    "op.gg tells you how you play. StackGG tells you how your group plays together. A shared stack page for your League squad, rendered inside the Rift.",
+  metadataBase: new URL(siteUrl),
+  title: { default: "StackGG — settle it, as a stack", template: "%s — StackGG" },
+  description: tagline,
+  applicationName: "StackGG",
+  keywords: [
+    "League of Legends stats",
+    "LoL group stats",
+    "duo winrate",
+    "premade stats",
+    "squad stats",
+    "stack stats",
+    "op.gg for groups",
+    "who carries",
+  ],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: "StackGG",
+    url: siteUrl,
+    title: "StackGG — settle it, as a stack",
+    description: tagline,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "StackGG — settle it, as a stack",
+    description: tagline,
+  },
+  // Public marketing surfaces are indexable; private/dynamic routes opt out via their
+  // own segment metadata + robots.ts disallow.
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

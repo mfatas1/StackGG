@@ -1,6 +1,6 @@
 import { RoutePose } from "@/components/rift/RoutePose";
 
-export const metadata = { title: "Legal — StackGG" };
+export const metadata = { title: "Legal — StackGG", alternates: { canonical: "/legal" } };
 
 export default function Legal() {
   return (

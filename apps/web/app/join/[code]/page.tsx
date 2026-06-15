@@ -6,6 +6,7 @@ import { Button } from "@/components/kit/Button";
 import { RoutePose } from "@/components/rift/RoutePose";
 
 export const dynamic = "force-dynamic";
+export const metadata = { robots: { index: false, follow: false } };
 
 export default async function JoinPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;

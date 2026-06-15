@@ -5,6 +5,7 @@ import { Frame } from "@/components/kit/Frame";
 import { RoutePose } from "@/components/rift/RoutePose";
 
 export const dynamic = "force-dynamic";
+export const metadata = { robots: { index: false, follow: false } };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ redirect?: string }> }) {
   const { redirect: r } = await searchParams;
