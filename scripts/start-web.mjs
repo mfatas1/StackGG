@@ -19,6 +19,16 @@ try {
   process.exit(1);
 }
 
+// One-time identity heal after the Riot key change: re-resolve accounts the new key
+// can't read and move their history + crew links onto the fresh PUUID. Self-skips once
+// no account is stale, so it's cheap on every boot. Non-fatal.
+console.log("[start-web] PUUID remap (skips if nothing stale)…");
+try {
+  await runOnce("remap-puuids", "npx", ["tsx", "scripts/remap-puuids.ts"]);
+} catch (err) {
+  console.warn("[start-web] PUUID remap skipped:", err.message);
+}
+
 // One-time carry-score backfill for games stored before the formula existed. It runs
 // here (private DB reachable) and self-skips once there's nothing left to score, so it's
 // cheap on every boot. Non-fatal — a failure must never keep the site down.

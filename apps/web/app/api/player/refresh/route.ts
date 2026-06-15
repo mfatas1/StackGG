@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   resolveAndUpsertAccount,
   refreshAccountRanks,
+  backfillMember,
   seasonStartDays,
   parseRiotId,
   RiotApiError,
@@ -49,8 +50,25 @@ export async function POST(req: Request) {
   }
 
   await refreshAccountRanks(puuid, region).catch(() => {});
-  // incremental = catch up new games until we hit stored history; days is only a floor
-  // so a never-fully-synced profile can't page back past the season.
-  await enqueueBackfill({ puuid, platform: region, days: seasonStartDays(), incremental: true });
-  return NextResponse.json({ ok: true });
+
+  // Pull new games right here in the request — incremental, so it stops as soon as it
+  // reaches already-stored history (usually just a few new games). Doing it inline
+  // means Refresh works immediately and does NOT depend on the background worker being
+  // up. `days` is only a floor so a never-fully-synced profile can't page past the season.
+  try {
+    const res = await backfillMember({
+      puuid,
+      platform: region,
+      days: seasonStartDays(),
+      incremental: true,
+      storeRaw: true,
+    });
+    return NextResponse.json({ ok: true, fetched: res.fetched });
+  } catch (err) {
+    // If the live pull dies partway (e.g. a transient Riot error), fall back to the
+    // background job so the refresh still eventually catches up.
+    console.warn(`[refresh] inline pull failed for ${puuid.slice(0, 10)}…: ${(err as Error).message}`);
+    await enqueueBackfill({ puuid, platform: region, days: seasonStartDays(), incremental: true });
+    return NextResponse.json({ ok: true, fetched: 0 });
+  }
 }
