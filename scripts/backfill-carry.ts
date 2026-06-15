@@ -21,6 +21,20 @@ async function main() {
   await client.connect();
   process.stdout.write("connected.\n");
 
+  // Idempotency gate: skip immediately if every scorable row is already done. This
+  // lets the web container run it cheaply on every boot — it only does real work once.
+  const pending = (
+    await client.query(
+      `SELECT 1 FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id
+       WHERE mp.carry_score IS NULL AND m.raw IS NOT NULL LIMIT 1`,
+    )
+  ).rowCount;
+  if (!pending) {
+    console.log("carry backfill: nothing to do.");
+    await client.end();
+    return;
+  }
+
   const total = (await client.query(`SELECT count(*)::int AS n FROM matches WHERE raw IS NOT NULL`)).rows[0].n;
   console.log(`scanning ${total} matches with stored raw…`);
 

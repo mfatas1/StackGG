@@ -19,6 +19,16 @@ try {
   process.exit(1);
 }
 
+// One-time carry-score backfill for games stored before the formula existed. It runs
+// here (private DB reachable) and self-skips once there's nothing left to score, so it's
+// cheap on every boot. Non-fatal — a failure must never keep the site down.
+console.log("[start-web] carry backfill (skips if already done)…");
+try {
+  await runOnce("carry-backfill", "npx", ["tsx", "scripts/backfill-carry.ts"]);
+} catch (err) {
+  console.warn("[start-web] carry backfill skipped:", err.message);
+}
+
 console.log("[start-web] starting web server…");
 const web = spawn("npm", ["run", "start", "--workspace", "apps/web"], { stdio: "inherit", env: process.env });
 web.on("exit", (code) => process.exit(code ?? 0));
