@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/session";
-import { CreateCrewForm, SignInForm } from "@/components/Forms";
+import { CreateCrewForm, SignInForm } from "@/components/forms";
 import { Frame } from "@/components/kit/Frame";
 import { RoutePose } from "@/components/rift/RoutePose";
 

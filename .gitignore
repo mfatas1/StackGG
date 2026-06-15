@@ -1,9 +1,25 @@
+# dependencies
 node_modules/
+
+# secrets / env — keep only the example templates
 .env
 .env.*
 !.env.example
-spike-out/
+!.env.production.example
+
+# build output & caches
 .next/
 dist/
+*.tsbuildinfo
+
+# local agent / editor tooling (never push)
+.claude/
+.agents/
+skills-lock.json
+
+# spike scratch
+spike-out/
+
+# logs / OS cruft
 *.log
 .DS_Store

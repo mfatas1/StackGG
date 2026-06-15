@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getPool, queryOne } from "@crewstats/shared";
-import { JoinForm } from "@/components/Forms";
+import { JoinForm } from "@/components/forms";
 import { Frame } from "@/components/kit/Frame";
 import { Button } from "@/components/kit/Button";
 import { RoutePose } from "@/components/rift/RoutePose";

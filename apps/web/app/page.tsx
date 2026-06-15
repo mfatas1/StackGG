@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { ArrowRight, Swords, Users, Crosshair, Plus, Crown } from "lucide-react";
-import { RiotIdForm } from "@/components/Forms";
+import { RiotIdForm } from "@/components/forms";
 import { SmoothScroll } from "@/components/kit/SmoothScroll";
 import { Reveal } from "@/components/kit/motion";
 import { Frame } from "@/components/kit/Frame";

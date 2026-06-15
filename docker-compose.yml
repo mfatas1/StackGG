@@ -1,5 +1,5 @@
 # Local / single-host deployment: Postgres + web + worker in one project.
-# Mirrors the Railway/Fly target in PLAN §9. Set RIOT_KEY + AUTH_SECRET in .env.
+# Mirrors the Railway target (see DEPLOY.md). Set RIOT_KEY + AUTH_SECRET in .env.
 services:
   db:
     image: postgres:16
@@ -18,7 +18,7 @@ services:
       retries: 10
 
   migrate:
-    build: { context: ., target: worker }
+    build: { context: ., dockerfile: Dockerfile.worker }
     command: ["npm", "run", "db:migrate"]
     environment:
       DATABASE_URL: postgres://crewstats:crewstats@db:5432/crewstats
@@ -26,20 +26,21 @@ services:
       db: { condition: service_healthy }
 
   web:
-    build: { context: ., target: web }
+    build: { context: ., dockerfile: Dockerfile.web }
     environment:
       DATABASE_URL: postgres://crewstats:crewstats@db:5432/crewstats
       RIOT_KEY: ${RIOT_KEY}
       AUTH_SECRET: ${AUTH_SECRET:-change-me}
-      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:3100}
       MAGIC_LINK_TRANSPORT: console
+      PORT: "3100"
     ports:
-      - "3000:3000"
+      - "3100:3100"
     depends_on:
       migrate: { condition: service_completed_successfully }
 
   worker:
-    build: { context: ., target: worker }
+    build: { context: ., dockerfile: Dockerfile.worker }
     environment:
       DATABASE_URL: postgres://crewstats:crewstats@db:5432/crewstats
       RIOT_KEY: ${RIOT_KEY}
