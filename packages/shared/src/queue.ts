@@ -15,6 +15,8 @@ export const BackfillMemberJobSchema = z.object({
   puuid: z.string(),
   platform: z.string(),
   days: z.number().default(90),
+  /** sync just the new games since last time (Refresh button), vs a full window pull. */
+  incremental: z.boolean().optional(),
 });
 export type BackfillMemberJob = z.infer<typeof BackfillMemberJobSchema>;
 

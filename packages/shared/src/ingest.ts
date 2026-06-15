@@ -32,6 +32,12 @@ export interface BackfillOptions {
   storeRaw?: boolean;
   /** quick mode: only the most recent N matches per queue (single page, no pagination). */
   recentOnlyPerQueue?: number;
+  /**
+   * incremental mode: page newest-first and stop each queue as soon as a page is
+   * entirely already stored — i.e. fetch every new game since the last sync, however
+   * many, then stop. `days` is just a safety floor on how far back to look.
+   */
+  incremental?: boolean;
   client?: RiotClient;
   db?: Queryable;
   now?: number;
@@ -85,7 +91,22 @@ export async function backfillMember(opts: BackfillOptions): Promise<BackfillRes
       let start = 0;
       for (;;) {
         const page = await client.getMatchIds(opts.puuid, opts.platform, { queue, startTime, start, count: 100 });
-        out.push(...page);
+        if (!page.length) break;
+        if (opts.incremental) {
+          // Match IDs come back newest-first. Keep only the ones we don't have; once a
+          // whole page is already stored, everything older is too — stop this queue.
+          const existing = await query<{ match_id: string }>(
+            `SELECT match_id FROM match_participants WHERE puuid = $1 AND match_id = ANY($2)`,
+            [opts.puuid, page],
+            db,
+          );
+          const have = new Set(existing.map((r) => r.match_id));
+          const fresh = page.filter((id) => !have.has(id));
+          out.push(...fresh);
+          if (fresh.length === 0) break; // caught up to already-stored history
+        } else {
+          out.push(...page);
+        }
         if (page.length < 100) break;
         start += 100;
       }
