@@ -9,3 +9,4 @@ export * from "./ingest.js";
 export * from "./riot/regions.js";
 export * from "./riot/types.js";
 export * from "./riot/client.js";
+export * from "./carry.js";

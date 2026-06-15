@@ -227,6 +227,7 @@ export const ActivityMemberSchema = z.object({
   win: z.boolean(),
   teamId: z.number(),
   placement: z.number().nullable(),
+  isTeamMvp: z.boolean().default(false),
 });
 export const ActivityItemSchema = z.object({
   matchId: z.string(),
@@ -256,6 +257,7 @@ export const MatchHistoryItemSchema = z.object({
   damage: z.number(),
   visionScore: z.number(),
   placement: z.number().nullable(),
+  isTeamMvp: z.boolean().default(false), // was this player their team's carry-score MVP
   // Tracked crewmates who were in the same match, with their line (for the
   // crew-context match view + "who carried" among the crew). Same side or enemy.
   crewmates: z.array(

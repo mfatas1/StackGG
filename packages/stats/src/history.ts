@@ -60,10 +60,11 @@ export async function getMatchHistory(
     placement: number | null;
     team_id: number;
     subteam_id: number | null;
+    is_team_mvp: boolean | null;
   }>(
     `SELECT mp.match_id, m.queue_id, m.game_start::text AS game_start, m.game_duration,
             mp.champion_id, mp.champion_name, mp.role, mp.win, mp.kills, mp.deaths,
-            mp.assists, mp.cs, mp.gold, mp.damage, mp.vision_score, mp.placement, mp.team_id, mp.subteam_id
+            mp.assists, mp.cs, mp.gold, mp.damage, mp.vision_score, mp.placement, mp.team_id, mp.subteam_id, mp.is_team_mvp
      FROM match_participants mp
      JOIN matches m ON m.match_id = mp.match_id
      WHERE ${where}
@@ -146,6 +147,7 @@ export async function getMatchHistory(
     damage: r.damage,
     visionScore: r.vision_score,
     placement: r.placement,
+    isTeamMvp: r.is_team_mvp ?? false,
     crewmates: mateByMatch.get(r.match_id) ?? [],
   }));
 }

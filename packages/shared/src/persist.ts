@@ -2,6 +2,55 @@ import type pg from "pg";
 import type { Queryable } from "./db.js";
 import { isArena } from "./riot/regions.js";
 import type { MatchDto, ParticipantDto } from "./riot/types.js";
+import { carryScores, type CarryStats } from "./carry.js";
+
+/** Map a raw participant to the carry-formula inputs. */
+function carryStatsOf(p: ParticipantDto): CarryStats {
+  return {
+    kills: p.kills,
+    deaths: p.deaths,
+    assists: p.assists,
+    damage: p.totalDamageDealtToChampions,
+    teamDamagePct: p.challenges?.teamDamagePercentage,
+    damageTaken: p.totalDamageTaken,
+    selfMitigated: p.damageSelfMitigated,
+    healTeammates: p.totalHealsOnTeammates,
+    shieldTeammates: p.totalDamageShieldedOnTeammates,
+    ccTime: p.timeCCingOthers,
+    visionScore: p.visionScore,
+    gold: p.goldEarned,
+    killingSpree: p.largestKillingSpree,
+    multikill: p.largestMultiKill,
+    soloKills: p.challenges?.soloKills,
+    objectivesStolen: p.objectivesStolen,
+    allySaves: p.challenges?.saveAllyFromDeath,
+  };
+}
+
+/** Carry score per puuid, normalized within each team, plus the per-team MVP flag. */
+export function teamCarry(participants: ParticipantDto[]): Map<string, { score: number; mvp: boolean }> {
+  const out = new Map<string, { score: number; mvp: boolean }>();
+  const teams = new Map<number, ParticipantDto[]>();
+  for (const p of participants) {
+    const arr = teams.get(p.teamId) ?? [];
+    arr.push(p);
+    teams.set(p.teamId, arr);
+  }
+  for (const roster of teams.values()) {
+    const stats = roster.map(carryStatsOf);
+    const scores = carryScores(stats);
+    let max = -Infinity;
+    stats.forEach((s) => {
+      const v = scores.get(s) ?? -Infinity;
+      if (v > max) max = v;
+    });
+    roster.forEach((p, i) => {
+      const v = scores.get(stats[i]!) ?? 0;
+      out.set(p.puuid, { score: v, mvp: v === max });
+    });
+  }
+  return out;
+}
 
 /**
  * Pure mapping + persistence of a match into the schema (PLAN §8). Shared by the
@@ -130,10 +179,15 @@ export async function persistMatch(
   );
   const matchInserted = (ins as pg.QueryResult).rowCount === 1;
 
+  // Carry score is computed over the FULL team (all players are present here), then
+  // stored per tracked player so every view reads the same team-MVP.
+  const carry = teamCarry(info.participants);
+
   let participantsWritten = 0;
   for (const p of info.participants) {
     if (trackedPuuids && !trackedPuuids.has(p.puuid)) continue;
     const r = mapParticipant(matchId, info.queueId, p);
+    const c = carry.get(p.puuid);
     const res = await client.query(
       `INSERT INTO match_participants
          (match_id, puuid, team_id, subteam_id, placement, champion_id, champion_name,
@@ -142,10 +196,10 @@ export async function persistMatch(
           self_mitigated, heal_teammates, shield_teammates, cc_time, largest_crit,
           objectives_stolen, solo_kills,
           team_damage_pct, skillshots_dodged, kills_near_enemy_turret, fountain_takedowns,
-          smiteless_steals, ally_saves)
+          smiteless_steals, ally_saves, carry_score, is_team_mvp)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
                $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,
-               $30,$31,$32,$33,$34,$35)
+               $30,$31,$32,$33,$34,$35,$36,$37)
        ON CONFLICT (match_id, puuid) DO NOTHING`,
       [
         r.match_id, r.puuid, r.team_id, r.subteam_id, r.placement, r.champion_id, r.champion_name,
@@ -154,7 +208,7 @@ export async function persistMatch(
         r.self_mitigated, r.heal_teammates, r.shield_teammates, r.cc_time, r.largest_crit,
         r.objectives_stolen, r.solo_kills,
         r.team_damage_pct, r.skillshots_dodged, r.kills_near_enemy_turret, r.fountain_takedowns,
-        r.smiteless_steals, r.ally_saves,
+        r.smiteless_steals, r.ally_saves, c?.score ?? null, c?.mvp ?? null,
       ] as never[],
     );
     participantsWritten += (res as pg.QueryResult).rowCount ?? 0;
