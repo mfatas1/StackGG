@@ -19,9 +19,22 @@ export const REGIONS = [
   { value: "la2", label: "LAS" },
 ];
 
-function RegionSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function RegionSelect({
+  value,
+  onChange,
+  size = "md",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  size?: "md" | "lg";
+}) {
   return (
-    <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Region">
+    <Select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label="Region"
+      className={size === "lg" ? "h-13 text-base sm:h-14" : ""}
+    >
       {REGIONS.map((r) => (
         <option key={r.value} value={r.value}>
           {r.label}
@@ -182,7 +195,7 @@ export function RiotIdForm({ size = "md" }: { size?: "md" | "lg" }) {
           </ul>
         )}
       </div>
-      <RegionSelect value={region} onChange={setRegion} />
+      <RegionSelect value={region} onChange={setRegion} size={size} />
       <Button size={size === "lg" ? "lg" : "md"} loading={loading} disabled={!valid}>
         See your stats
         {!loading && <ArrowRight className="h-4 w-4" />}
