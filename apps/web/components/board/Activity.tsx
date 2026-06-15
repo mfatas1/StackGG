@@ -6,7 +6,6 @@ import { ChampIcon } from "../kit/Avatar";
 import { Empty } from "../kit/Frame";
 import { MatchScoreboard } from "./MatchScoreboard";
 import { timeAgo, gameDuration, placementSuffix } from "@/lib/format";
-import { mvpOf } from "@/lib/carry";
 
 const QUEUE_NAME: Record<string, string> = { ranked: "Ranked Solo", flex: "Ranked Flex", aram: "ARAM", arena: "Arena", all: "Game" };
 
@@ -26,7 +25,7 @@ export function Activity({ items, crewSlug }: { items: ActivityItem[]; crewSlug?
 function ActivityRow({ m }: { m: ActivityItem }) {
   const [open, setOpen] = useState(false);
   const arena = m.queueSlug === "arena";
-  const carrierPuuid = mvpOf(m.members)?.puuid;
+  const carrierPuuid = m.members.find((p) => p.isTeamMvp)?.puuid;
 
   return (
     <li className="notch notch-sm border border-line/50 bg-surface-2/40">

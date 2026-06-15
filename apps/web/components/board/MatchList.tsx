@@ -84,7 +84,7 @@ function MatchRow({ m, basePath, crewSlug, mePuuid }: { m: MatchHistoryItem; bas
             <span className={`text-2xs font-semibold ${remake ? "text-ink-faint" : good ? "text-win" : "text-loss"}`}>
               {remake ? "Remake" : arena ? placementSuffix(m.placement ?? 0) : m.win ? "Win" : "Loss"}
             </span>
-            {!remake && carrierKey === "You" && sameSide.length > 0 && !arena && <Crown className="h-3.5 w-3.5 text-gold" aria-label="You out-carried the stack" />}
+            {!remake && m.isTeamMvp && !arena && <Crown className="h-3.5 w-3.5 text-gold" aria-label="Team MVP — highest carry score on your team" />}
           </div>
           <div className="mt-0.5 text-2xs text-ink-faint">
             {QUEUE_NAME[m.queueSlug] ?? "Game"} · {gameDuration(m.gameDuration)} · {timeAgo(m.gameStart)}

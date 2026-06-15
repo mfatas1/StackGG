@@ -43,9 +43,10 @@ export async function getActivity(
     win: boolean;
     team_id: number;
     placement: number | null;
+    is_team_mvp: boolean | null;
   }>(
     `SELECT mp.match_id, mp.puuid, ra.riot_id, mp.champion_name,
-            mp.kills, mp.deaths, mp.assists, mp.win, mp.team_id, mp.placement
+            mp.kills, mp.deaths, mp.assists, mp.win, mp.team_id, mp.placement, mp.is_team_mvp
      FROM match_participants mp
      JOIN riot_accounts ra ON ra.puuid = mp.puuid
      WHERE mp.match_id = ANY($1) AND mp.puuid = ANY($2)
@@ -67,6 +68,7 @@ export async function getActivity(
       win: p.win,
       teamId: p.team_id,
       placement: p.placement,
+      isTeamMvp: p.is_team_mvp ?? false,
     });
     byMatch.set(p.match_id, arr);
   }
