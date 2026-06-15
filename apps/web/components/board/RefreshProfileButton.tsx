@@ -5,7 +5,7 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "../kit/Button";
 
 /**
- * Forces a full-season re-pull for this profile (bypasses the freshness window) and
+ * Pulls this profile's recent games on demand (bypasses the freshness window) and
  * navigates to ?refreshing=1 so the download banner lights up and streams games in.
  */
 export function RefreshProfileButton({ riotId, region }: { riotId: string; region: string }) {
@@ -43,7 +43,7 @@ export function RefreshProfileButton({ riotId, region }: { riotId: string; regio
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button variant="ghost" size="sm" onClick={refresh} loading={loading} title="Re-pull your full season history from Riot">
+      <Button variant="ghost" size="sm" onClick={refresh} loading={loading} title="Pull your latest games from Riot">
         {!loading && <RefreshCw className="h-4 w-4" />}
         Refresh
       </Button>
