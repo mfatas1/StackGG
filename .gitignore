@@ -23,3 +23,10 @@ spike-out/
 # logs / OS cruft
 *.log
 .DS_Store
+
+# personal planning / internal docs (kept locally, never pushed)
+PLAN.md
+PRODUCT.md
+DESIGN.md
+CLAUDE.md
+FRONTEND_PLAN.md
