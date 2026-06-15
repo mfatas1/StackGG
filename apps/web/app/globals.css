@@ -2,46 +2,187 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Tokens — OKLCH components (L C H), per FRONTEND_PLAN §3 / DESIGN.md. Warm-charcoal
+ * surfaces, CORAL primary, GOLD rank. The whole UI sits as lit Hextech panels OVER
+ * the persistent 3D Rift; the only cool color is atmospheric depth in the scene.
+ */
 @layer base {
+  /* ---- Frost (default) — icy azure on deep navy ---- */
   :root {
     color-scheme: dark;
+    --notch: 12px;
+
+    --bg: 0.15 0.025 245;
+    --surface: 0.22 0.035 240;
+    --surface-2: 0.27 0.04 238;
+    --surface-3: 0.33 0.05 235;
+    --line: 0.38 0.05 235;
+    --line-strong: 0.5 0.05 230;
+    --ink: 0.95 0.01 230;
+    --ink-dim: 0.72 0.015 235;
+    --ink-faint: 0.62 0.025 235;
+    --primary: 0.74 0.13 230;
+    --primary-strong: 0.82 0.11 225;
+    --primary-on: 0.15 0.03 245;
+    --win: 0.78 0.13 175;
+    --loss: 0.62 0.19 18;
+    --gold: 0.86 0.06 225;
+    --gold-light: 0.92 0.04 225;
+    --gold-dark: 0.5 0.06 230;
+    --info: 0.66 0.1 220;
   }
+
+  /* ---- Arcane — violet on indigo ---- */
+  [data-theme="arcane"] {
+    --bg: 0.15 0.03 292;
+    --surface: 0.22 0.04 290;
+    --surface-2: 0.27 0.045 288;
+    --surface-3: 0.33 0.05 286;
+    --line: 0.38 0.055 286;
+    --line-strong: 0.5 0.06 284;
+    --ink: 0.95 0.012 300;
+    --ink-dim: 0.72 0.018 300;
+    --ink-faint: 0.62 0.03 290;
+    --primary: 0.66 0.19 300;
+    --primary-strong: 0.74 0.17 302;
+    --primary-on: 0.16 0.03 295;
+    --win: 0.78 0.12 185;
+    --loss: 0.62 0.19 12;
+    --gold: 0.85 0.08 305;
+    --gold-light: 0.92 0.05 305;
+    --gold-dark: 0.5 0.1 300;
+    --info: 0.7 0.12 250;
+  }
+
+  /* ---- Ember — warm orange on charred coal ---- */
+  [data-theme="ember"] {
+    --bg: 0.15 0.02 40;
+    --surface: 0.22 0.025 40;
+    --surface-2: 0.27 0.03 38;
+    --surface-3: 0.33 0.035 35;
+    --line: 0.38 0.04 35;
+    --line-strong: 0.5 0.04 32;
+    --ink: 0.95 0.012 70;
+    --ink-dim: 0.72 0.016 70;
+    --ink-faint: 0.6 0.02 50;
+    --primary: 0.7 0.16 42;
+    --primary-strong: 0.76 0.15 38;
+    --primary-on: 0.18 0.03 40;
+    --win: 0.78 0.14 165;
+    --loss: 0.62 0.2 25;
+    --gold: 0.82 0.11 70;
+    --gold-light: 0.9 0.08 75;
+    --gold-dark: 0.55 0.1 65;
+    --info: 0.68 0.1 230;
+  }
+
+  /* ---- Verdant — jade on deep forest ---- */
+  [data-theme="verdant"] {
+    --bg: 0.15 0.022 175;
+    --surface: 0.22 0.03 172;
+    --surface-2: 0.27 0.035 170;
+    --surface-3: 0.33 0.04 168;
+    --line: 0.38 0.045 168;
+    --line-strong: 0.5 0.05 165;
+    --ink: 0.95 0.01 150;
+    --ink-dim: 0.72 0.015 160;
+    --ink-faint: 0.62 0.025 175;
+    --primary: 0.72 0.14 165;
+    --primary-strong: 0.8 0.13 168;
+    --primary-on: 0.16 0.03 175;
+    --win: 0.72 0.13 235;
+    --loss: 0.62 0.19 22;
+    --gold: 0.84 0.1 90;
+    --gold-light: 0.92 0.06 90;
+    --gold-dark: 0.55 0.09 85;
+    --info: 0.68 0.1 220;
+  }
+
+  /* ---- Hextech — gold on obsidian (the League client) ---- */
+  [data-theme="hextech"] {
+    --bg: 0.14 0.022 250;
+    --surface: 0.22 0.035 248;
+    --surface-2: 0.27 0.04 246;
+    --surface-3: 0.33 0.05 245;
+    --line: 0.38 0.05 244;
+    --line-strong: 0.5 0.05 240;
+    --ink: 0.93 0.022 90;
+    --ink-dim: 0.69 0.016 92;
+    --ink-faint: 0.64 0.025 235;
+    --primary: 0.71 0.105 84;
+    --primary-strong: 0.81 0.095 88;
+    --primary-on: 0.16 0.02 250;
+    --win: 0.75 0.115 192;
+    --loss: 0.62 0.19 18;
+    --gold: 0.87 0.075 90;
+    --gold-light: 0.92 0.05 92;
+    --gold-dark: 0.46 0.07 85;
+    --info: 0.66 0.09 210;
+  }
+
+  /* ---- Daylight — deep teal ink on warm parchment (LIGHT) ---- */
+  [data-theme="parchment"] {
+    color-scheme: light;
+    --bg: 0.95 0.008 95;
+    --surface: 0.99 0.004 95;
+    --surface-2: 0.97 0.006 95;
+    --surface-3: 0.91 0.012 95;
+    --line: 0.86 0.012 95;
+    --line-strong: 0.72 0.02 95;
+    --ink: 0.27 0.03 235;
+    --ink-dim: 0.45 0.03 230;
+    --ink-faint: 0.56 0.025 225;
+    --primary: 0.55 0.1 200;
+    --primary-strong: 0.48 0.11 200;
+    --primary-on: 0.99 0.005 200;
+    --win: 0.55 0.15 155;
+    --loss: 0.53 0.2 25;
+    --gold: 0.62 0.12 78;
+    --gold-light: 0.72 0.1 80;
+    --gold-dark: 0.5 0.1 75;
+    --info: 0.5 0.12 235;
+  }
+
   html {
-    background-color: #010a13;
+    background-color: oklch(var(--bg)); /* matches the active theme — no flash */
     -webkit-text-size-adjust: 100%;
   }
   body {
-    @apply bg-bg text-ink font-sans antialiased;
+    @apply text-ink font-sans antialiased;
+    background: transparent; /* the fixed Rift world shows through */
     text-rendering: optimizeLegibility;
   }
+
   .tnum {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
   }
   ::selection {
-    background: rgba(200, 155, 60, 0.32);
-    color: #f0e6d2;
+    background: oklch(var(--primary) / 0.3);
+    color: oklch(var(--ink));
   }
   :focus-visible {
-    outline: 2px solid #c89b3c;
+    outline: 2px solid oklch(var(--primary));
     outline-offset: 2px;
-    border-radius: 2px;
   }
   * {
     scrollbar-width: thin;
-    scrollbar-color: #1e3247 transparent;
+    scrollbar-color: oklch(var(--line-strong)) transparent;
   }
   *::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
   *::-webkit-scrollbar-thumb {
-    background: #1e3247;
+    background: oklch(var(--line-strong));
     border-radius: 999px;
     border: 3px solid transparent;
     background-clip: content-box;
   }
-  h1, h2, h3 {
+  h1,
+  h2,
+  h3 {
     text-wrap: balance;
   }
   p {
@@ -50,44 +191,59 @@
 }
 
 @layer components {
-  /* Hextech corner brackets on key frames */
-  .hex-corners {
-    position: relative;
+  /* Beveled "Hextech" corner cut — top-left + bottom-right. The signature shape. */
+  .notch {
+    clip-path: polygon(
+      var(--notch) 0,
+      100% 0,
+      100% calc(100% - var(--notch)),
+      calc(100% - var(--notch)) 100%,
+      0 100%,
+      0 var(--notch)
+    );
   }
-  .hex-corners::before,
-  .hex-corners::after {
-    content: "";
-    position: absolute;
-    width: 11px;
-    height: 11px;
-    pointer-events: none;
-    z-index: 1;
+  .notch-sm {
+    --notch: 8px;
   }
-  .hex-corners::before {
-    top: 0;
-    left: 0;
-    border-top: 2px solid #c89b3c;
-    border-left: 2px solid #c89b3c;
+  .notch-lg {
+    --notch: 18px;
   }
-  .hex-corners::after {
-    bottom: 0;
-    right: 0;
-    border-bottom: 2px solid #c89b3c;
-    border-right: 2px solid #c89b3c;
-  }
-  /* Thin gold gradient divider */
-  .gold-rule {
+
+  /* Thin gold gradient rule */
+  .rule-gold {
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(200, 155, 60, 0.6), transparent);
+    background: linear-gradient(90deg, transparent, oklch(var(--gold) / 0.5), transparent);
   }
+
+  /* Loading shimmer — never a center spinner */
   .skeleton {
-    @apply relative overflow-hidden rounded bg-surface-2;
+    @apply relative overflow-hidden bg-surface-2/70;
   }
   .skeleton::after {
     content: "";
     @apply absolute inset-0 -translate-x-full;
-    background: linear-gradient(90deg, transparent, rgba(30, 50, 71, 0.6), transparent);
-    animation: shimmer 1.4s infinite;
+    background: linear-gradient(90deg, transparent, oklch(var(--surface-3) / 0.9), transparent);
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* Synergy "conduit" arc — ignites between two portraits on hover */
+  .conduit {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    opacity: 0;
+    transition:
+      stroke-dashoffset 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 0.3s ease;
+  }
+  .group:hover .conduit {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }
 
@@ -99,5 +255,8 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+  .conduit {
+    transition: opacity 0.001ms;
   }
 }

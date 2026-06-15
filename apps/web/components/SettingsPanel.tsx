@@ -1,9 +1,10 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { RefreshCw, Trash2 } from "lucide-react";
-import { Button, Input, Panel } from "./ui";
-import { CopyButton } from "./CopyButton";
+import { Copy, Check, RefreshCw, Trash2 } from "lucide-react";
+import { Frame, PanelHead } from "./kit/Frame";
+import { Button } from "./kit/Button";
+import { Input } from "./kit/Field";
 
 interface Member {
   puuid: string;
@@ -14,10 +15,9 @@ interface Member {
 export function SettingsPanel({
   slug,
   initialName,
-  inviteUrl: initialInviteUrl,
+  inviteUrl,
   members,
   isOwner,
-  baseUrl,
 }: {
   slug: string;
   initialName: string;
@@ -28,96 +28,114 @@ export function SettingsPanel({
 }) {
   const router = useRouter();
   const [name, setName] = useState(initialName);
-  const [inviteUrl, setInviteUrl] = useState(initialInviteUrl);
-  const [msg, setMsg] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [invite, setInvite] = useState(inviteUrl);
+  const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [regen, setRegen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  if (!isOwner) {
-    return <p className="text-sm text-ink-dim">Only the crew owner can change these settings.</p>;
+  if (!isOwner)
+    return (
+      <Frame>
+        <div className="p-5 text-sm text-ink-dim">Only the stack owner can change these settings.</div>
+      </Frame>
+    );
+
+  async function rename() {
+    setSaving(true);
+    await fetch(`/api/crews/${slug}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+    setSaving(false);
+    router.refresh();
   }
-
-  async function rename(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    const res = await fetch(`/api/crews/${slug}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    setBusy(false);
-    setMsg(res.ok ? "Saved." : "Rename failed.");
-    if (res.ok) router.refresh();
-  }
-
   async function regenerate() {
+    setRegen(true);
     const res = await fetch(`/api/crews/${slug}/invite`, { method: "POST" });
     const data = await res.json();
-    if (res.ok) {
-      setInviteUrl(`${baseUrl}/join/${data.inviteCode}`);
-      setMsg("Invite code regenerated. Old links no longer work.");
-    }
+    if (data.inviteCode) setInvite(invite.replace(/\/join\/.*$/, `/join/${data.inviteCode}`));
+    setRegen(false);
   }
-
-  async function remove(puuid: string) {
-    const res = await fetch(`/api/crews/${slug}/members?puuid=${encodeURIComponent(puuid)}`, { method: "DELETE" });
-    if (res.ok) router.refresh();
+  async function copy() {
+    await navigator.clipboard.writeText(invite).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
   }
-
-  async function destroy() {
-    if (!confirm("Delete this crew permanently? This cannot be undone.")) return;
-    const res = await fetch(`/api/crews/${slug}`, { method: "DELETE" });
-    if (res.ok) router.push("/");
+  async function removeMember(puuid: string) {
+    await fetch(`/api/crews/${slug}/members?puuid=${encodeURIComponent(puuid)}`, { method: "DELETE" });
+    router.refresh();
+  }
+  async function del() {
+    await fetch(`/api/crews/${slug}`, { method: "DELETE" });
+    router.push("/account");
   }
 
   return (
-    <div className="space-y-5">
-      {msg && <p className="rounded border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">{msg}</p>}
-
-      <Panel className="p-4">
-        <form onSubmit={rename} className="space-y-2">
-          <label className="block text-xs font-medium text-ink-dim">Crew name</label>
-          <div className="flex gap-2">
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-            <Button loading={busy}>Save</Button>
-          </div>
-        </form>
-      </Panel>
-
-      <Panel className="p-4">
-        <label className="mb-2 block text-xs font-medium text-ink-dim">Invite link</label>
-        <div className="flex flex-wrap items-center gap-2">
-          <code className="min-w-0 flex-1 truncate rounded bg-surface px-2.5 py-2 font-mono text-xs text-ink-dim">{inviteUrl}</code>
-          <CopyButton text={inviteUrl} label="Copy" />
-          <Button variant="ghost" size="sm" onClick={regenerate} type="button">
-            <RefreshCw className="h-4 w-4" /> Regenerate
+    <div className="space-y-4">
+      <Frame>
+        <PanelHead title="Stack name" />
+        <div className="flex gap-2 p-4 pt-3">
+          <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
+          <Button onClick={rename} loading={saving} disabled={!name.trim() || name === initialName}>
+            Save
           </Button>
         </div>
-      </Panel>
+      </Frame>
 
-      <Panel className="p-4">
-        <label className="mb-2 block text-xs font-medium text-ink-dim">Members</label>
-        <ul className="divide-y divide-line/50">
+      <Frame>
+        <PanelHead title="Invite link" />
+        <div className="space-y-2 p-4 pt-3">
+          <div className="flex gap-2">
+            <Input value={invite} readOnly className="font-mono text-2xs" />
+            <Button variant="subtle" onClick={copy}>
+              {copied ? <Check className="h-4 w-4 text-win" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          </div>
+          <button onClick={regenerate} className="inline-flex items-center gap-1.5 text-2xs text-ink-faint transition-colors hover:text-ink">
+            <RefreshCw className={`h-3 w-3 ${regen ? "animate-spin" : ""}`} /> Regenerate (old link stops working)
+          </button>
+        </div>
+      </Frame>
+
+      <Frame>
+        <PanelHead title="Members" />
+        <ul className="divide-y divide-line/40 p-2">
           {members.map((m) => (
-            <li key={m.puuid} className="flex items-center justify-between py-2 text-sm">
-              <span>
-                {m.riotId} {m.role === "owner" && <span className="ml-1 text-2xs text-gold">owner</span>}
+            <li key={m.puuid} className="flex items-center justify-between gap-2 px-2 py-2 text-sm">
+              <span className="truncate">
+                {m.riotId}
+                {m.role === "owner" && <span className="ml-2 text-2xs text-gold">owner</span>}
               </span>
               {m.role !== "owner" && (
-                <button className="text-xs text-loss hover:underline" onClick={() => remove(m.puuid)} type="button">
+                <button onClick={() => removeMember(m.puuid)} className="text-2xs text-ink-faint transition-colors hover:text-loss" aria-label={`Remove ${m.riotId}`}>
                   Remove
                 </button>
               )}
             </li>
           ))}
         </ul>
-      </Panel>
+      </Frame>
 
-      <Panel className="border-loss/30 p-4">
-        <label className="mb-2 block text-xs font-medium text-ink-dim">Danger zone</label>
-        <Button variant="danger" onClick={destroy} type="button">
-          <Trash2 className="h-4 w-4" /> Delete crew
-        </Button>
-      </Panel>
+      <Frame tone="default" className="border-loss/20">
+        <PanelHead title="Danger zone" />
+        <div className="p-4 pt-3">
+          {confirmDelete ? (
+            <div className="space-y-3">
+              <p className="text-sm text-ink-dim">Delete this stack permanently? This removes the page for everyone.</p>
+              <div className="flex gap-2">
+                <Button variant="danger" onClick={del}>
+                  <Trash2 className="h-4 w-4" /> Yes, delete it
+                </Button>
+                <Button variant="subtle" onClick={() => setConfirmDelete(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="danger" onClick={() => setConfirmDelete(true)}>
+              <Trash2 className="h-4 w-4" /> Delete stack
+            </Button>
+          )}
+        </div>
+      </Frame>
     </div>
   );
 }

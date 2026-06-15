@@ -34,12 +34,13 @@ async function uniqueSlug(name: string): Promise<string> {
 }
 
 async function uniqueInviteCode(): Promise<string> {
+  // 14 chars over a 31-symbol alphabet ≈ 70 bits — not brute-forceable.
   for (let i = 0; i < 20; i++) {
-    const code = generateInviteCode(8);
+    const code = generateInviteCode(14);
     const exists = await queryOne(`SELECT 1 FROM crews WHERE invite_code = $1`, [code]);
     if (!exists) return code;
   }
-  return generateInviteCode(12);
+  return generateInviteCode(18);
 }
 
 async function memberPuuids(crewId: string): Promise<string[]> {

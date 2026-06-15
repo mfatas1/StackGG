@@ -9,7 +9,7 @@ async function requireOwner(slug: string) {
   const crew = await getCrewBySlug(slug);
   if (!crew) return { error: NextResponse.json({ error: "Crew not found." }, { status: 404 }) };
   if (!(await isCrewOwner(crew.id, user.id)))
-    return { error: NextResponse.json({ error: "Only the crew owner can do that." }, { status: 403 }) };
+    return { error: NextResponse.json({ error: "Only the stack owner can do that." }, { status: 403 }) };
   return { crew };
 }
 

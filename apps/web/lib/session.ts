@@ -36,12 +36,48 @@ export async function createMagicLink(email: string, redirectTo = "/"): Promise<
   return `${base}/api/auth/callback?token=${token}`;
 }
 
-/** "Send" a magic link. v1 transport is console (no SMTP configured). */
+function magicEmailHtml(url: string): string {
+  return `<!doctype html><html><body style="margin:0;background:#0e1116;font-family:ui-sans-serif,system-ui,Arial,sans-serif">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px">
+    <tr><td align="center">
+      <table role="presentation" width="100%" style="max-width:440px;background:#161b22;border:1px solid #2a313c;border-radius:10px;padding:32px">
+        <tr><td>
+          <div style="font-size:20px;font-weight:700;color:#e8c87a;letter-spacing:.5px">StackGG</div>
+          <p style="color:#c8cfd8;font-size:15px;line-height:1.5;margin:20px 0 8px">Click below to sign in. This link expires in ${MAGIC_TTL_MIN} minutes.</p>
+          <p style="margin:24px 0">
+            <a href="${url}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:8px">Sign in to StackGG</a>
+          </p>
+          <p style="color:#7c8794;font-size:12px;line-height:1.5;margin:16px 0 0">If the button doesn't work, paste this into your browser:<br><span style="color:#9aa6b2;word-break:break-all">${url}</span></p>
+          <p style="color:#5a636e;font-size:12px;margin:20px 0 0">If you didn't request this, you can safely ignore it.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table></body></html>`;
+}
+
+/** Send a magic link. Uses Resend (HTTP API) when configured; otherwise logs to console (dev). */
 export async function deliverMagicLink(email: string, url: string): Promise<void> {
-  if (env().MAGIC_LINK_TRANSPORT === "console") {
-    console.log(`\n🔗 Magic link for ${email}:\n   ${url}\n`);
+  const e = env();
+  if (e.MAGIC_LINK_TRANSPORT === "resend" && e.RESEND_API_KEY) {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${e.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: e.MAGIC_LINK_FROM,
+        to: [email],
+        subject: "Your StackGG sign-in link",
+        html: magicEmailHtml(url),
+        text: `Sign in to StackGG:\n${url}\n\nThis link expires in ${MAGIC_TTL_MIN} minutes. If you didn't request it, ignore this email.`,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Email send failed (${res.status}): ${body.slice(0, 200)}`);
+    }
+    return;
   }
-  // SMTP transport intentionally unimplemented in v1 (see PLAN §5.3 / README).
+  // Fallback: console transport (dev, or when Resend isn't configured yet).
+  console.log(`\n🔗 Magic link for ${email}:\n   ${url}\n`);
 }
 
 export async function consumeMagicLink(

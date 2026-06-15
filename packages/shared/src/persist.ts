@@ -28,6 +28,27 @@ export interface ParticipantRowInput {
   damage: number;
   cs: number;
   vision_score: number;
+  // Records-board stats (participant-level; see migration 002):
+  time_dead: number;
+  longest_life: number;
+  killing_spree: number;
+  multikill: number;
+  pentakills: number;
+  damage_taken: number;
+  self_mitigated: number;
+  heal_teammates: number;
+  shield_teammates: number;
+  cc_time: number;
+  largest_crit: number;
+  objectives_stolen: number;
+  solo_kills: number;
+  // Challenge-derived (migration 003); null when the match has no challenges block.
+  team_damage_pct: number | null;
+  skillshots_dodged: number | null;
+  kills_near_enemy_turret: number | null;
+  fountain_takedowns: number | null;
+  smiteless_steals: number | null;
+  ally_saves: number | null;
 }
 
 export function mapParticipant(matchId: string, queueId: number, p: ParticipantDto): ParticipantRowInput {
@@ -49,6 +70,25 @@ export function mapParticipant(matchId: string, queueId: number, p: ParticipantD
     damage: p.totalDamageDealtToChampions,
     cs: p.totalMinionsKilled + (p.neutralMinionsKilled ?? 0),
     vision_score: p.visionScore ?? 0,
+    time_dead: p.totalTimeSpentDead ?? 0,
+    longest_life: p.longestTimeSpentLiving ?? 0,
+    killing_spree: p.largestKillingSpree ?? 0,
+    multikill: p.largestMultiKill ?? 0,
+    pentakills: p.pentaKills ?? 0,
+    damage_taken: p.totalDamageTaken ?? 0,
+    self_mitigated: p.damageSelfMitigated ?? 0,
+    heal_teammates: p.totalHealsOnTeammates ?? 0,
+    shield_teammates: p.totalDamageShieldedOnTeammates ?? 0,
+    cc_time: p.timeCCingOthers ?? 0,
+    largest_crit: p.largestCriticalStrike ?? 0,
+    objectives_stolen: p.objectivesStolen ?? 0,
+    solo_kills: p.challenges?.soloKills ?? 0,
+    team_damage_pct: p.challenges?.teamDamagePercentage ?? null,
+    skillshots_dodged: p.challenges?.skillshotsDodged ?? null,
+    kills_near_enemy_turret: p.challenges?.killsNearEnemyTurret ?? null,
+    fountain_takedowns: p.challenges?.takedownsInEnemyFountain ?? null,
+    smiteless_steals: p.challenges?.epicMonsterStolenWithoutSmite ?? null,
+    ally_saves: p.challenges?.saveAllyFromDeath ?? null,
   };
 }
 
@@ -97,12 +137,24 @@ export async function persistMatch(
     const res = await client.query(
       `INSERT INTO match_participants
          (match_id, puuid, team_id, subteam_id, placement, champion_id, champion_name,
-          role, win, kills, deaths, assists, gold, damage, cs, vision_score)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+          role, win, kills, deaths, assists, gold, damage, cs, vision_score,
+          time_dead, longest_life, killing_spree, multikill, pentakills, damage_taken,
+          self_mitigated, heal_teammates, shield_teammates, cc_time, largest_crit,
+          objectives_stolen, solo_kills,
+          team_damage_pct, skillshots_dodged, kills_near_enemy_turret, fountain_takedowns,
+          smiteless_steals, ally_saves)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+               $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,
+               $30,$31,$32,$33,$34,$35)
        ON CONFLICT (match_id, puuid) DO NOTHING`,
       [
         r.match_id, r.puuid, r.team_id, r.subteam_id, r.placement, r.champion_id, r.champion_name,
         r.role, r.win, r.kills, r.deaths, r.assists, r.gold, r.damage, r.cs, r.vision_score,
+        r.time_dead, r.longest_life, r.killing_spree, r.multikill, r.pentakills, r.damage_taken,
+        r.self_mitigated, r.heal_teammates, r.shield_teammates, r.cc_time, r.largest_crit,
+        r.objectives_stolen, r.solo_kills,
+        r.team_damage_pct, r.skillshots_dodged, r.kills_near_enemy_turret, r.fountain_takedowns,
+        r.smiteless_steals, r.ally_saves,
       ] as never[],
     );
     participantsWritten += (res as pg.QueryResult).rowCount ?? 0;

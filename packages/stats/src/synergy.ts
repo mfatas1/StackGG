@@ -1,5 +1,5 @@
 import { query, type Queryable } from "@crewstats/shared";
-import type { DuoSynergy, FlexRoleStat, QueueSlug, PlayerIdentity } from "@crewstats/shared";
+import type { DuoSynergy, FlexRoleStat, QueueSlug, PlayerIdentity, CrewLineup } from "@crewstats/shared";
 import { QUEUES } from "@crewstats/shared";
 import { winrate, queueIdsForSlug } from "./util.js";
 import { getIdentity } from "./modes.js";
@@ -93,6 +93,29 @@ export async function getDuoSynergies(
   }
   out.sort((x, y) => (y.winrate ?? 0) - (x.winrate ?? 0) || y.games - x.games);
   return out;
+}
+
+/**
+ * Per-side crew lineups across all tracked queues: for every match where >= 2
+ * crew members shared a team (same Arena subteam), one row of {win, puuids}. The
+ * client computes the together-winrate of any selected subset from these — the
+ * interactive synergy explorer (any pair / trio / full stack), no round-trip.
+ */
+export async function getCrewLineups(client: Queryable, puuids: string[]): Promise<CrewLineup[]> {
+  if (puuids.length < 2) return [];
+  // Summoner's Rift only — Arena/ARAM don't count toward synergy/team winrates.
+  const rows = await query<{ win: boolean; puuids: string[] }>(
+    `SELECT bool_and(mp.win) AS win, array_agg(mp.puuid) AS puuids
+       FROM match_participants mp
+       JOIN matches m ON m.match_id = mp.match_id
+      WHERE mp.puuid = ANY($1)
+        AND m.queue_id IN (${QUEUES.RANKED_SOLO}, ${QUEUES.RANKED_FLEX})
+      GROUP BY mp.match_id, mp.team_id
+     HAVING count(*) >= 2`,
+    [puuids],
+    client,
+  );
+  return rows.map((r) => ({ win: r.win, puuids: r.puuids }));
 }
 
 /** Flex role-assignment winrates (PLAN P1: "we win 68% when X junglas"). */

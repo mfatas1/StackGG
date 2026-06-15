@@ -2,8 +2,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Mail, Check, Search, Clock } from "lucide-react";
-import { Button, Input, Select } from "./ui";
-import { ProfileIcon } from "./Icons";
+import { Button } from "./kit/Button";
+import { Input, Select, Field } from "./kit/Field";
+import { ProfileIcon } from "./kit/Avatar";
 
 export const REGIONS = [
   { value: "euw1", label: "EUW" },
@@ -37,7 +38,6 @@ interface Suggestion {
   profileIcon: number | null;
 }
 const RECENT_KEY = "stackgg:recent";
-
 function readRecent(): Suggestion[] {
   try {
     return JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
@@ -70,17 +70,10 @@ export function RiotIdForm({ size = "md" }: { size?: "md" | "lg" }) {
   const showRecent = riotId.trim().length === 0 && recent.length > 0;
   const list = showRecent ? recent : results;
 
-  useEffect(() => {
-    setRecent(readRecent());
-  }, []);
-
-  // Debounced suggestion fetch.
+  useEffect(() => setRecent(readRecent()), []);
   useEffect(() => {
     const q = riotId.trim();
-    if (q.length < 2) {
-      setResults([]);
-      return;
-    }
+    if (q.length < 2) return setResults([]);
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
@@ -99,8 +92,6 @@ export function RiotIdForm({ size = "md" }: { size?: "md" | "lg" }) {
       clearTimeout(t);
     };
   }, [riotId]);
-
-  // Close on outside click.
   useEffect(() => {
     function onDown(e: MouseEvent) {
       if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
@@ -110,19 +101,16 @@ export function RiotIdForm({ size = "md" }: { size?: "md" | "lg" }) {
   }, []);
 
   function go(target: { riotId: string; tag: string; region: string }) {
-    const full = `${target.riotId}#${target.tag}`;
     pushRecent({ ...target, profileIcon: null });
     setLoading(true);
     setOpen(false);
-    router.push(`/player/${target.region}/${encodeURIComponent(full)}`);
+    router.push(`/player/${target.region}/${encodeURIComponent(`${target.riotId}#${target.tag}`)}`);
   }
-
   function submitFree() {
     if (!valid) return;
     const [name, tag] = riotId.trim().split("#");
     go({ riotId: name!, tag: tag!, region });
   }
-
   function onKeyDown(e: React.KeyboardEvent) {
     if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) setOpen(true);
     if (e.key === "ArrowDown") {
@@ -136,9 +124,7 @@ export function RiotIdForm({ size = "md" }: { size?: "md" | "lg" }) {
         e.preventDefault();
         go(list[hi]);
       }
-    } else if (e.key === "Escape") {
-      setOpen(false);
-    }
+    } else if (e.key === "Escape") setOpen(false);
   }
 
   return (
@@ -167,14 +153,9 @@ export function RiotIdForm({ size = "md" }: { size?: "md" | "lg" }) {
           aria-autocomplete="list"
           aria-label="Riot ID"
           autoComplete="off"
-          autoFocus
         />
         {open && list.length > 0 && (
-          <ul
-            id="riotid-listbox"
-            role="listbox"
-            className="absolute z-30 mt-1.5 max-h-72 w-full overflow-auto rounded border border-line bg-surface shadow-pop"
-          >
+          <ul id="riotid-listbox" role="listbox" className="notch notch-sm absolute z-30 mt-1.5 max-h-72 w-full overflow-auto border border-line bg-bg/95 shadow-[0_12px_32px_oklch(0_0_0/0.5)] backdrop-blur-md">
             {showRecent && (
               <li className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-2xs uppercase tracking-wide text-ink-faint">
                 <Clock className="h-3 w-3" /> Recent
@@ -190,16 +171,12 @@ export function RiotIdForm({ size = "md" }: { size?: "md" | "lg" }) {
                   e.preventDefault();
                   go(s);
                 }}
-                className={`flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm ${
-                  i === hi ? "bg-surface-3" : "hover:bg-surface-2"
-                }`}
+                className={`flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm ${i === hi ? "bg-surface-3" : "hover:bg-surface-2"}`}
               >
                 <ProfileIcon id={s.profileIcon} name={s.riotId} size={24} />
                 <span className="font-medium">{s.riotId}</span>
                 <span className="text-ink-faint">#{s.tag}</span>
-                <span className="ml-auto rounded bg-surface-2 px-1.5 py-0.5 text-2xs uppercase text-ink-faint">
-                  {s.region}
-                </span>
+                <span className="ml-auto bg-surface-2 px-1.5 py-0.5 text-2xs uppercase text-ink-faint">{s.region}</span>
               </li>
             ))}
           </ul>
@@ -238,9 +215,9 @@ export function SignInForm({ redirectTo = "/" }: { redirectTo?: string }) {
     setState("sent");
   }
 
-  if (state === "sent") {
+  if (state === "sent")
     return (
-      <div className="flex items-start gap-3 rounded border border-win/30 bg-win/10 p-4 text-sm">
+      <div className="notch flex items-start gap-3 border border-win/30 bg-win/10 p-4 text-sm">
         <Check className="mt-0.5 h-5 w-5 shrink-0 text-win" />
         <div className="space-y-1">
           <p className="font-medium text-ink">Check your email for a sign-in link.</p>
@@ -255,33 +232,16 @@ export function SignInForm({ redirectTo = "/" }: { redirectTo?: string }) {
         </div>
       </div>
     );
-  }
 
   return (
     <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submit}>
       <div className="relative flex-1">
         <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-        <Input
-          className="pl-9"
-          type="email"
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+        <Input className="pl-9" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </div>
       <Button loading={state === "sending"}>Email me a link</Button>
       {state === "error" && <span className="self-center text-sm text-loss">{err}</span>}
     </form>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-medium text-ink-dim">{label}</span>
-      {children}
-    </label>
   );
 }
 
@@ -304,16 +264,16 @@ export function CreateCrewForm() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setErr(data.error ?? "Could not create crew.");
+      setErr(data.error ?? "Could not create stack.");
       setState("error");
       return;
     }
-    router.push(`/crew/${data.slug}?created=1`);
+    router.push(`/stack/${data.slug}?created=1`);
   }
 
   return (
     <form className="space-y-4" onSubmit={submit}>
-      <Field label="Crew name">
+      <Field label="Stack name">
         <Input placeholder="The Bot Lane Diff" value={name} onChange={(e) => setName(e.target.value)} required />
       </Field>
       <Field label="Your Riot ID">
@@ -324,7 +284,7 @@ export function CreateCrewForm() {
       </Field>
       {state === "error" && <p className="text-sm text-loss">{err}</p>}
       <Button className="w-full" loading={state === "loading"}>
-        {state === "loading" ? "Creating & pulling games…" : "Create crew"}
+        {state === "loading" ? "Creating & pulling games…" : "Create stack"}
       </Button>
     </form>
   );
@@ -353,7 +313,7 @@ export function JoinForm({ inviteCode }: { inviteCode: string }) {
       setState("error");
       return;
     }
-    router.push(`/crew/${data.slug}?joined=1`);
+    router.push(`/stack/${data.slug}?joined=1`);
   }
 
   return (
@@ -369,7 +329,7 @@ export function JoinForm({ inviteCode }: { inviteCode: string }) {
       </Field>
       {state === "error" && <p className="text-sm text-loss">{err}</p>}
       <Button className="w-full" loading={state === "loading"}>
-        {state === "loading" ? "Joining & pulling games…" : "Join crew"}
+        {state === "loading" ? "Joining & pulling games…" : "Join stack"}
       </Button>
     </form>
   );
