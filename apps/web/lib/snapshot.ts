@@ -38,23 +38,31 @@ export async function getOrBuildSnapshot(riotId: string, region: string): Promis
     return { ok: false, code: "RIOT_UNAVAILABLE", message: "Riot API is temporarily unavailable." };
   }
 
-  const fresh = await queryOne<{ recent: boolean }>(
-    `SELECT (last_backfilled_at > now() - ($2 || ' minutes')::interval) AS recent
+  const fresh = await queryOne<{ recent: boolean; has_data: boolean }>(
+    `SELECT
+       (last_backfilled_at > now() - ($2 || ' minutes')::interval) AS recent,
+       exists(SELECT 1 FROM match_participants WHERE puuid = $1) AS has_data
        FROM riot_accounts WHERE puuid = $1`,
     [puuid, String(FRESH_MIN)],
   );
 
-  // We only kicked off a full background backfill if the account wasn't recently
-  // refreshed — that's the only time the "still loading more" note is true.
   const backfilling = !fresh?.recent;
   if (backfilling) {
-    try {
-      await refreshAccountRanks(puuid, region);
-      await backfillMember({ puuid, platform: region, recentOnlyPerQueue: 20, storeRaw: true });
-    } catch (err) {
-      console.warn(`[snapshot] backfill failed for ${puuid.slice(0, 10)}…: ${(err as Error).message}`);
+    // Only block render for a player we have NO data for yet — a small synchronous
+    // pull so a first visit isn't empty. Known players render from the DB
+    // immediately; the background job (which also refreshes ranks) + the
+    // BackfillBanner fill in the rest. Removes the up-to-80-call stall on stale views.
+    if (!fresh?.has_data) {
+      try {
+        await Promise.all([
+          refreshAccountRanks(puuid, region),
+          backfillMember({ puuid, platform: region, recentOnlyPerQueue: 10, storeRaw: true }),
+        ]);
+      } catch (err) {
+        console.warn(`[snapshot] first-visit fetch failed for ${puuid.slice(0, 10)}…: ${(err as Error).message}`);
+      }
     }
-    // Full season history in the background.
+    // Full season history (and rank refresh) in the background.
     await enqueueBackfill({ puuid, platform: region, days: seasonStartDays() });
   }
 

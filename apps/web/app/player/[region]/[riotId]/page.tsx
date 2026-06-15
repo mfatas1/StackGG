@@ -47,11 +47,13 @@ export default async function PlayerSnapshot({
   const queue = parseQueueSlug(q);
   const championId = champ ? Number(champ) : undefined;
   const basePath = `/player/${region}/${encodeURIComponent(riotId)}`;
-  const history = await getMatchHistory(getPool(), s.identity.puuid, { slug: queue, championId, limit: 20 });
+  // history + total-game count both depend only on the puuid — run them in parallel.
+  const [history, totalRes] = await Promise.all([
+    getMatchHistory(getPool(), s.identity.puuid, { slug: queue, championId, limit: 20 }),
+    getPool().query<{ n: number }>(`SELECT count(*)::int AS n FROM match_participants WHERE puuid = $1`, [s.identity.puuid]),
+  ]);
   const champName = championId ? history[0]?.championName : undefined;
-  const totalGames =
-    (await getPool().query<{ n: number }>(`SELECT count(*)::int AS n FROM match_participants WHERE puuid = $1`, [s.identity.puuid]))
-      .rows[0]?.n ?? 0;
+  const totalGames = totalRes.rows[0]?.n ?? 0;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
