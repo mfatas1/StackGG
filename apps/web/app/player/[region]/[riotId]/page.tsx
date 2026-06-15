@@ -9,6 +9,7 @@ import { Frame, Section, PanelHead, Empty } from "@/components/kit/Frame";
 import { Button } from "@/components/kit/Button";
 import { ModeCards } from "@/components/board/ModeCards";
 import { MatchList } from "@/components/board/MatchList";
+import { BackfillBanner } from "@/components/board/BackfillBanner";
 import { QueueTabs, parseQueueSlug } from "@/components/kit/Tabs";
 import { PlayerLink } from "@/components/kit/links";
 import { RoutePose } from "@/components/rift/RoutePose";
@@ -47,10 +48,15 @@ export default async function PlayerSnapshot({
   const basePath = `/player/${region}/${encodeURIComponent(riotId)}`;
   const history = await getMatchHistory(getPool(), s.identity.puuid, { slug: queue, championId, limit: 20 });
   const champName = championId ? history[0]?.championName : undefined;
+  const totalGames =
+    (await getPool().query<{ n: number }>(`SELECT count(*)::int AS n FROM match_participants WHERE puuid = $1`, [s.identity.puuid]))
+      .rows[0]?.n ?? 0;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
       <RoutePose name="surface" />
+
+      <BackfillBanner active={result.backfilling} games={totalGames} />
 
       <Frame as="header">
         <div className="flex flex-wrap items-center gap-4 p-5">
@@ -129,9 +135,6 @@ export default async function PlayerSnapshot({
         </aside>
       </div>
 
-      {result.backfilling && (
-        <p className="text-center text-2xs text-ink-faint">Pulling your full 90-day history in the background. Refresh in a minute for more.</p>
-      )}
     </div>
   );
 }
