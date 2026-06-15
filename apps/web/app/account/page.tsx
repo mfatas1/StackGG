@@ -8,6 +8,7 @@ import { Button } from "@/components/kit/Button";
 import { RoutePose } from "@/components/rift/RoutePose";
 
 export const dynamic = "force-dynamic";
+export const metadata = { robots: { index: false, follow: false } };
 
 export default async function AccountPage() {
   const user = await getCurrentUser();
