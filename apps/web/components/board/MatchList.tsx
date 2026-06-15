@@ -8,14 +8,13 @@ import { Empty } from "../kit/Frame";
 import { PlayerLink } from "../kit/links";
 import { MatchScoreboard } from "./MatchScoreboard";
 import { timeAgo, gameDuration, placementSuffix } from "@/lib/format";
+import { mvpOf } from "@/lib/carry";
 
 const kdaRatio = (k: number, d: number, a: number) => (d === 0 ? Infinity : (k + a) / d);
 const kdaText = (k: number, d: number, a: number) => (d === 0 ? "Perfect" : ((k + a) / d).toFixed(2));
 const kdaTone = (r: number) => (r >= 4 ? "text-gold" : r >= 2.5 ? "text-win" : r >= 1.5 ? "text-ink" : "text-loss");
 const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`);
 const QUEUE_NAME: Record<string, string> = { ranked: "Ranked Solo", flex: "Ranked Flex", aram: "ARAM", arena: "Arena", all: "Game" };
-const carryScore = (l: { kills: number; deaths: number; assists: number; damage: number }) =>
-  (l.kills * 2 + l.assists) / Math.max(1, l.deaths) + l.damage / 10000;
 
 /** Performance grade from KDA — honest, KDA-based (no fake OP score). */
 function grade(k: number, d: number, a: number): { label: string; cls: string } | null {
@@ -61,7 +60,7 @@ function MatchRow({ m, basePath, crewSlug, mePuuid }: { m: MatchHistoryItem; bas
   const me = { kills: m.kills, deaths: m.deaths, assists: m.assists, damage: m.damage, riotId: "You" };
   const sameSide = m.crewmates.filter((c) => c.sameSide);
   const enemySide = m.crewmates.filter((c) => !c.sameSide);
-  const carrierKey = [me, ...sameSide].reduce((best, l) => (carryScore(l) > carryScore(best) ? l : best), me).riotId;
+  const carrierKey = mvpOf([me, ...sameSide])?.riotId ?? me.riotId;
   const g = grade(m.kills, m.deaths, m.assists);
 
   return (
