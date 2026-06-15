@@ -70,7 +70,7 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
        sum(mp.kills_near_enemy_turret) AS tower_kills, sum(mp.fountain_takedowns) AS fountain,
        sum(mp.smiteless_steals) AS smiteless, sum(mp.ally_saves) AS saves,
        avg(CASE WHEN extract(hour FROM m.game_start AT TIME ZONE 'Europe/Paris') < 5 THEN 1 ELSE 0 END) AS night_share
-     FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id
+     FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id AND m.game_duration >= 300
      WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR}
      GROUP BY mp.puuid`,
     [puuids],
@@ -113,7 +113,7 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
          SELECT mp.puuid, mp.win,
            row_number() OVER (PARTITION BY mp.puuid ORDER BY m.game_start)
            - row_number() OVER (PARTITION BY mp.puuid, mp.win ORDER BY m.game_start) AS grp
-         FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id
+         FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id AND m.game_duration >= 300
          WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR}
        ),
        runs AS (SELECT puuid, count(*) AS streak FROM seq WHERE win = ${won ? "true" : "false"} GROUP BY puuid, grp)
@@ -130,7 +130,7 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
     `WITH recent AS (
        SELECT mp.puuid, mp.win,
          row_number() OVER (PARTITION BY mp.puuid ORDER BY m.game_start DESC) AS rn
-       FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id
+       FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id AND m.game_duration >= 300
        WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR}
      )
      SELECT puuid,
@@ -145,7 +145,7 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   // Champion pool — top champ (share) + a "cursed" champ (plenty of games, losing).
   const champRows = await query<{ puuid: string; champion_name: string; g: string; w: string }>(
     `SELECT mp.puuid, mp.champion_name, count(*) AS g, count(*) FILTER (WHERE mp.win) AS w
-     FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id
+     FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id AND m.game_duration >= 300
      WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR}
      GROUP BY mp.puuid, mp.champion_name`,
     [puuids],

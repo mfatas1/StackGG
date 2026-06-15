@@ -164,9 +164,10 @@ export async function getCrewCards(client: Queryable, puuids: string[]): Promise
     `SELECT
        (SELECT count(DISTINCT m.match_id)
           FROM matches m JOIN match_participants mp ON mp.match_id = m.match_id
-          WHERE mp.puuid = ANY($1) AND m.game_start > now() - interval '7 days')::text AS games_this_week,
+          WHERE mp.puuid = ANY($1) AND ${NOT_REMAKE_SQL} AND m.game_start > now() - interval '7 days')::text AS games_this_week,
        (SELECT count(*) FROM (
           SELECT mp.match_id FROM match_participants mp
+          JOIN matches m ON m.match_id = mp.match_id AND ${NOT_REMAKE_SQL}
           WHERE mp.puuid = ANY($1)
           GROUP BY mp.match_id HAVING count(DISTINCT mp.puuid) >= 2
         ) s)::text AS total_shared`,
@@ -182,7 +183,7 @@ export async function getCrewCards(client: Queryable, puuids: string[]): Promise
          bool_or(mp.win) AS won
        FROM match_participants mp
        JOIN matches m ON m.match_id = mp.match_id
-       WHERE mp.puuid = ANY($1)
+       WHERE mp.puuid = ANY($1) AND ${NOT_REMAKE_SQL}
          AND m.queue_id IN (${QUEUES.RANKED_SOLO}, ${QUEUES.RANKED_FLEX})
        GROUP BY m.match_id, side
        HAVING count(*) >= 5
@@ -198,7 +199,7 @@ export async function getCrewCards(client: Queryable, puuids: string[]): Promise
        (count(*) FILTER (WHERE mp.win) - count(*) FILTER (WHERE NOT mp.win))::text AS net
      FROM match_participants mp
      JOIN matches m ON m.match_id = mp.match_id
-     WHERE mp.puuid = ANY($1)
+     WHERE mp.puuid = ANY($1) AND ${NOT_REMAKE_SQL}
        AND m.queue_id IN (${QUEUES.RANKED_SOLO}, ${QUEUES.RANKED_FLEX})
        AND m.game_start > now() - interval '7 days'
      GROUP BY mp.puuid
