@@ -1,5 +1,5 @@
 import { query, type Queryable, QUEUES, QUEUE_LABEL } from "@crewstats/shared";
-import type { Award, AwardEntry, RolePlacement, PlayerIdentity } from "@crewstats/shared";
+import type { Award, AwardEntry, AwardCategory, RolePlacement, PlayerIdentity } from "@crewstats/shared";
 import { winrate, NOT_REMAKE_SQL } from "./util.js";
 import { getIdentity } from "./modes.js";
 
@@ -139,6 +139,10 @@ export async function getCrewAwards(client: Queryable, puuids: string[]): Promis
     return idCache.get(puuid)!;
   };
 
+  // Records are grouped into three tabs on the records page; `category` is set before
+  // each block below and stamped onto every award the push() helper builds.
+  let category: AwardCategory = "pergame";
+
   // Build an award from already-ranked rows + a per-row {value, sub} formatter.
   const push = async <T extends { puuid: string }>(
     key: string,
@@ -156,7 +160,7 @@ export async function getCrewAwards(client: Queryable, puuids: string[]): Promis
     }
     if (!entries.length) return;
     const top = entries[0]!;
-    awards.push({ key, label, value: top.value, holder: top.holder, sub: top.sub, ranking: entries });
+    awards.push({ key, label, value: top.value, holder: top.holder, sub: top.sub, ranking: entries, category });
   };
 
   const kda = (r: TopRow) => `${r.kills}/${r.deaths}/${r.assists}`;
@@ -221,7 +225,8 @@ export async function getCrewAwards(client: Queryable, puuids: string[]): Promis
     r.v ? { value: String(r.deaths), sub: ctx(r) } : null,
   );
 
-  // ---- Career sums for the rarer feats (per player, ranked) ----
+  // ---- All-time totals + aggregate records (per player, ranked) ----
+  category = "alltime";
   const careerSum = async (key: string, label: string, col: string, unit: string) => {
     const rows = await query<{ puuid: string; total: string }>(
       `SELECT mp.puuid, sum(mp.${col})::text AS total
@@ -268,6 +273,21 @@ export async function getCrewAwards(client: Queryable, puuids: string[]): Promis
     client,
   );
   await push("grind", "The grinder", grind, (r) => ({ value: r.games, sub: "SR games tracked" }));
+
+  // ---- Per-minute records (best single game's rate; ≥10-min games so short games
+  // don't inflate the rate). ----
+  category = "perminute";
+  const perMin = (col: string) => `${col}::float / GREATEST(m.game_duration, 1) * 60`;
+  const longGame = "AND m.game_duration >= 600";
+  const fixed = (d: number) => (r: TopRow) => (r.v ? { value: r.v.toFixed(d), sub: ctx(r) } : null);
+  await push("dmgmin", "Most damage / min", await topGames(client, puuids, perMin("mp.damage"), longGame), fixed(0));
+  await push("deathsmin", "Most deaths / min", await topGames(client, puuids, perMin("mp.deaths"), longGame), fixed(2));
+  await push("killsmin", "Most kills / min", await topGames(client, puuids, perMin("mp.kills"), longGame), fixed(2));
+  await push("goldmin", "Most gold / min", await topGames(client, puuids, perMin("mp.gold"), longGame), fixed(0));
+  await push("csmin", "Most CS / min", await topGames(client, puuids, perMin("mp.cs"), longGame), fixed(1));
+  await push("tankedmin", "Most damage tanked / min", await topGames(client, puuids, perMin("mp.damage_taken"), longGame), fixed(0));
+  await push("healmin", "Most healing / min", await topGames(client, puuids, perMin("mp.heal_teammates"), longGame), fixed(0));
+  await push("visionmin", "Highest vision / min", await topGames(client, puuids, perMin("mp.vision_score"), longGame), fixed(2));
 
   return awards;
 }

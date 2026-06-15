@@ -1,13 +1,20 @@
 "use client";
 import { useMemo, useState } from "react";
 import { Users, X } from "lucide-react";
-import type { PlayerIdentity, CrewLineup } from "@crewstats/shared";
+import type { PlayerIdentity, CrewLineup, QueueSlug } from "@crewstats/shared";
 import { ProfileIcon } from "../kit/Avatar";
 import { PlayerLink } from "../kit/links";
 import { Gauge } from "../kit/Gauge";
 import { SampleSize } from "../kit/Badge";
 import { Empty } from "../kit/Frame";
 import { pct } from "@/lib/format";
+
+const QUEUE_OPTS: { slug: QueueSlug; label: string }[] = [
+  { slug: "ranked", label: "Ranked Solo" },
+  { slug: "flex", label: "Flex" },
+  { slug: "aram", label: "ARAM" },
+  { slug: "arena", label: "Arena" },
+];
 
 /**
  * Interactive synergy explorer. A duo wall doesn't scale to a big crew (20 people
@@ -30,10 +37,18 @@ export function SynergyExplorer({
   const [sel, setSel] = useState<string[]>([]);
   const byId = useMemo(() => new Map(members.map((m) => [m.puuid, m])), [members]);
 
+  // Which queues this crew actually has shared lineups in — toggle hidden if only one.
+  const available = useMemo(() => {
+    const present = new Set(lineups.map((l) => l.queueSlug));
+    return QUEUE_OPTS.filter((o) => present.has(o.slug));
+  }, [lineups]);
+  const [queue, setQueue] = useState<QueueSlug>(() => available[0]?.slug ?? "ranked");
+  const filtered = useMemo(() => lineups.filter((l) => l.queueSlug === queue), [lineups, queue]);
+
   const stats = (puuids: string[]) => {
     let games = 0,
       wins = 0;
-    for (const l of lineups) {
+    for (const l of filtered) {
       if (puuids.every((p) => l.puuids.includes(p))) {
         games++;
         if (l.win) wins++;
@@ -58,10 +73,32 @@ export function SynergyExplorer({
       .filter((p) => p.games >= minGames)
       .sort((a, b) => (b.winrate ?? 0) - (a.winrate ?? 0) || b.games - a.games);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sel, members, lineups, minGames]);
+  }, [sel, members, filtered, minGames]);
 
   return (
     <div className="space-y-4">
+      {/* Queue toggle — see synergy within each mode */}
+      {available.length > 1 && (
+        <div className="notch notch-sm inline-flex gap-0.5 border border-line bg-bg/60 p-0.5">
+          {available.map((o) => {
+            const on = o.slug === queue;
+            return (
+              <button
+                key={o.slug}
+                type="button"
+                onClick={() => setQueue(o.slug)}
+                aria-current={on ? "page" : undefined}
+                className={`notch notch-sm px-3 py-1 text-xs font-medium transition-colors ${
+                  on ? "bg-surface-3 text-ink shadow-[inset_0_-2px_0_oklch(var(--primary)/0.7)]" : "text-ink-dim hover:text-ink"
+                }`}
+              >
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Roster — toggle players into the selection */}
       <div className="flex flex-wrap items-center gap-2">
         {members.map((m) => {
@@ -93,7 +130,7 @@ export function SynergyExplorer({
       ) : sel.length === 1 ? (
         <Partners me={byId.get(sel[0]!)!} partners={partners} minGames={minGames} crewSlug={crewSlug} />
       ) : (
-        <TopSynergies lineups={lineups} members={members} minGames={minGames} crewSlug={crewSlug} />
+        <TopSynergies lineups={filtered} members={members} minGames={minGames} crewSlug={crewSlug} />
       )}
     </div>
   );

@@ -174,6 +174,7 @@ export type DuoSynergy = z.infer<typeof DuoSynergySchema>;
 export const CrewLineupSchema = z.object({
   win: z.boolean(),
   puuids: z.array(z.string()), // tracked crew members on this side (>= 2)
+  queueSlug: QueueSlugSchema.default("ranked"), // which queue this lineup played
 });
 export type CrewLineup = z.infer<typeof CrewLineupSchema>;
 
@@ -197,6 +198,8 @@ export type AwardEntry = z.infer<typeof AwardEntrySchema>;
 
 // A crew superlative / record (bragging rights). `holder`/`value`/`sub` mirror the
 // #1 entry; `ranking` is the full top-N leaderboard for that record.
+export const AwardCategorySchema = z.enum(["pergame", "alltime", "perminute"]);
+export type AwardCategory = z.infer<typeof AwardCategorySchema>;
 export const AwardSchema = z.object({
   key: z.string(),
   label: z.string(), // "Most kills in a game"
@@ -204,6 +207,7 @@ export const AwardSchema = z.object({
   holder: PlayerIdentitySchema,
   sub: z.string(), // "Draven · 21/4/8 · Ranked Flex"
   ranking: z.array(AwardEntrySchema).default([]), // top 5, incl. the holder at rank 1
+  category: AwardCategorySchema.default("pergame"),
 });
 export type Award = z.infer<typeof AwardSchema>;
 

@@ -1,7 +1,7 @@
 import { query, type Queryable } from "@crewstats/shared";
 import type { DuoSynergy, FlexRoleStat, QueueSlug, PlayerIdentity, CrewLineup } from "@crewstats/shared";
 import { QUEUES } from "@crewstats/shared";
-import { winrate, queueIdsForSlug } from "./util.js";
+import { winrate, queueIdsForSlug, slugForQueueId } from "./util.js";
 import { getIdentities } from "./modes.js";
 
 const identityMap = (client: Queryable, puuids: string[]): Promise<Map<string, PlayerIdentity>> =>
@@ -91,25 +91,26 @@ export async function getDuoSynergies(
 
 /**
  * Per-side crew lineups across all tracked queues: for every match where >= 2
- * crew members shared a team (same Arena subteam), one row of {win, puuids}. The
- * client computes the together-winrate of any selected subset from these — the
- * interactive synergy explorer (any pair / trio / full stack), no round-trip.
+ * crew members shared a side (same team, or same Arena subteam), one row of
+ * {win, puuids, queueSlug}. The client computes the together-winrate of any
+ * selected subset — per queue — from these, no round-trip. The synergy explorer's
+ * queue toggle simply filters this list.
  */
 export async function getCrewLineups(client: Queryable, puuids: string[]): Promise<CrewLineup[]> {
   if (puuids.length < 2) return [];
-  // Summoner's Rift only — Arena/ARAM don't count toward synergy/team winrates.
-  const rows = await query<{ win: boolean; puuids: string[] }>(
-    `SELECT bool_and(mp.win) AS win, array_agg(mp.puuid) AS puuids
+  const rows = await query<{ win: boolean; puuids: string[]; queue_id: number }>(
+    `SELECT bool_and(mp.win) AS win, array_agg(mp.puuid) AS puuids, m.queue_id
        FROM match_participants mp
        JOIN matches m ON m.match_id = mp.match_id AND m.game_duration >= 300
       WHERE mp.puuid = ANY($1)
-        AND m.queue_id IN (${QUEUES.RANKED_SOLO}, ${QUEUES.RANKED_FLEX})
-      GROUP BY mp.match_id, mp.team_id
+        AND m.queue_id IN (${QUEUES.RANKED_SOLO}, ${QUEUES.RANKED_FLEX}, ${QUEUES.ARAM}, ${QUEUES.ARENA})
+      GROUP BY mp.match_id, m.queue_id,
+        CASE WHEN m.queue_id = ${QUEUES.ARENA} THEN mp.subteam_id ELSE mp.team_id END
      HAVING count(*) >= 2`,
     [puuids],
     client,
   );
-  return rows.map((r) => ({ win: r.win, puuids: r.puuids }));
+  return rows.map((r) => ({ win: r.win, puuids: r.puuids, queueSlug: slugForQueueId(r.queue_id) }));
 }
 
 /** Flex role-assignment winrates (PLAN P1: "we win 68% when X junglas"). */

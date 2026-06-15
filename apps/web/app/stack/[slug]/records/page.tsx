@@ -6,7 +6,8 @@ import { getCrewBySlug } from "@/lib/crews";
 import { getCrewAwards, getCrewMemberPuuids } from "@crewstats/stats";
 import { Frame, PanelHead } from "@/components/kit/Frame";
 import { RoutePose } from "@/components/rift/RoutePose";
-import { Awards } from "@/components/board/Awards";
+import { RecordsTabs } from "@/components/board/RecordsTabs";
+import type { Award, AwardCategory } from "@crewstats/shared";
 import { ProfileIcon } from "@/components/kit/Avatar";
 import { PlayerLink } from "@/components/kit/links";
 
@@ -71,6 +72,9 @@ export default async function StackRecordsPage({ params }: { params: Promise<{ s
       stand.set(e.holder.puuid, s);
     }
   }
+  const groups: Record<AwardCategory, Award[]> = { pergame: [], alltime: [], perminute: [] };
+  for (const a of awards) groups[a.category].push(a);
+
   const players = [...stand.values()].map((s) => ({ ...s, avg: s.placeSum / s.appearances }));
   const byFirsts = [...players].sort((a, b) => b.firsts - a.firsts || a.avg - b.avg);
   const byAvg = [...players].filter((p) => p.appearances >= 3).sort((a, b) => a.avg - b.avg || b.firsts - a.firsts);
@@ -112,9 +116,8 @@ export default async function StackRecordsPage({ params }: { params: Promise<{ s
 
       <Frame>
         <PanelHead title="All records" />
-        <div className="grid items-start gap-x-4 gap-y-2 p-4 pt-3 lg:grid-cols-2">
-          <Awards awards={awards.slice(0, Math.ceil(awards.length / 2))} crewSlug={slug} defaultOpen />
-          <Awards awards={awards.slice(Math.ceil(awards.length / 2))} crewSlug={slug} defaultOpen />
+        <div className="p-4 pt-3">
+          <RecordsTabs groups={groups} crewSlug={slug} />
         </div>
       </Frame>
     </div>
