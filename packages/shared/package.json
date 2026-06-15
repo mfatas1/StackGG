@@ -7,6 +7,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./carry": "./src/carry.ts",
     "./fixtures": "./fixtures/index.ts"
   },
   "scripts": {
