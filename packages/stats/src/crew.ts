@@ -9,7 +9,7 @@ import type {
   RankInfo,
 } from "@crewstats/shared";
 import { QUEUES } from "@crewstats/shared";
-import { winrate, round, queueIdsForSlug } from "./util.js";
+import { winrate, round, queueIdsForSlug, NOT_REMAKE_SQL } from "./util.js";
 import { getIdentity, getRecentForm } from "./modes.js";
 import { getDuoSynergies, getFlexRoles, getCrewLineups } from "./synergy.js";
 import { getActivity } from "./activity.js";
@@ -87,7 +87,7 @@ export async function getLeaderboard(
          avg(mp.placement) FILTER (WHERE m.queue_id = ${QUEUES.ARENA}) AS avg_placement
        FROM match_participants mp
        JOIN matches m ON m.match_id = mp.match_id
-       WHERE mp.puuid = ANY($1) ${queueClause}
+       WHERE mp.puuid = ANY($1) AND ${NOT_REMAKE_SQL} ${queueClause}
        GROUP BY mp.puuid
      ) agg ON agg.puuid = ra.puuid
      WHERE ra.puuid = ANY($1)`,

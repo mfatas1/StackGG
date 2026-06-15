@@ -1,6 +1,14 @@
 import { QUEUE_SLUG, QUEUES } from "@crewstats/shared";
 import type { QueueSlug } from "@crewstats/shared";
 
+/**
+ * Games shorter than this (seconds) are remakes / early voids — a real ranked game
+ * runs 15+ minutes. We exclude them from counts and aggregate stats to match op.gg
+ * (they're still shown in the match list). Predicate assumes the `matches` alias `m`.
+ */
+export const REMAKE_MAX_SECONDS = 300;
+export const NOT_REMAKE_SQL = `m.game_duration >= ${REMAKE_MAX_SECONDS}`;
+
 /** All winrates in this package are fractions in [0,1]; the UI formats as %. */
 export function winrate(wins: number, games: number): number | null {
   if (games <= 0) return null;

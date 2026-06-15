@@ -1,6 +1,6 @@
 import { query, queryOne, type Queryable, TRACKED_QUEUE_IDS, QUEUES, QUEUE_SLUG, isArena } from "@crewstats/shared";
 import type { ModeStats, PlayerSnapshot, PlayerIdentity, RankInfo } from "@crewstats/shared";
-import { kda, winrate, round, slugForQueueId } from "./util.js";
+import { kda, winrate, round, slugForQueueId, NOT_REMAKE_SQL } from "./util.js";
 
 interface ModeAggRow {
   games: string;
@@ -34,7 +34,7 @@ export async function getModeStats(
        ${isArena(queueId) ? "avg(mp.placement)::text" : "NULL"} AS avg_placement
      FROM match_participants mp
      JOIN matches m ON m.match_id = mp.match_id
-     WHERE mp.puuid = $1 AND m.queue_id = $2`,
+     WHERE mp.puuid = $1 AND m.queue_id = $2 AND ${NOT_REMAKE_SQL}`,
     [puuid, queueId],
     client,
   );
@@ -45,7 +45,7 @@ export async function getModeStats(
        count(*) FILTER (WHERE mp.win)::text AS wins
      FROM match_participants mp
      JOIN matches m ON m.match_id = mp.match_id
-     WHERE mp.puuid = $1 AND m.queue_id = $2
+     WHERE mp.puuid = $1 AND m.queue_id = $2 AND ${NOT_REMAKE_SQL}
      GROUP BY mp.champion_id, mp.champion_name
      ORDER BY count(*) DESC, count(*) FILTER (WHERE mp.win) DESC, mp.champion_name ASC
      LIMIT 5`,
@@ -100,7 +100,7 @@ export async function getRecentForm(
     `SELECT mp.win
      FROM match_participants mp
      JOIN matches m ON m.match_id = mp.match_id
-     WHERE mp.puuid = $1 ${queueIds ? "AND m.queue_id = ANY($3::int[])" : ""}
+     WHERE mp.puuid = $1 AND ${NOT_REMAKE_SQL} ${queueIds ? "AND m.queue_id = ANY($3::int[])" : ""}
      ORDER BY m.game_start DESC
      LIMIT $2`,
     queueIds ? [puuid, limit, queueIds] : [puuid, limit],
