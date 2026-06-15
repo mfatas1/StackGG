@@ -1,7 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import Link from "next/link";
-import { ArrowRight, Swords, Users, Crosshair, Plus, Crown } from "lucide-react";
+import { ArrowRight, Swords, Users, Plus, Crown } from "lucide-react";
 import { RiotIdForm } from "@/components/forms";
 import { SmoothScroll } from "@/components/kit/SmoothScroll";
 import { Reveal } from "@/components/kit/motion";
@@ -51,8 +51,8 @@ export default function Landing() {
             Settle it. <span className="text-primary">As a stack.</span>
           </h1>
           <p className="mt-5 max-w-xl text-pretty text-base text-ink-dim sm:text-lg">
-            One shared page for your League squad: a cross-mode leaderboard, duo synergy, and head-to-head for your
-            5-stack. Built for the argument in your Discord at 1am.
+            One shared page for your League squad: a cross-mode leaderboard and duo synergy for your 5-stack. Built
+            for the argument in your Discord at 1am.
           </p>
           <div className="mt-7 max-w-xl">
             <Frame tone="lit" className="p-2 shadow-[0_0_40px_oklch(var(--primary)/0.18)]">
@@ -104,7 +104,7 @@ export default function Landing() {
       {/* Fold 3 — three proofs */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-24">
         <Reveal>
-          <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Three things no other site shows you.</h2>
+          <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Two things no other site shows you.</h2>
         </Reveal>
         <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-6">
           <Reveal className="sm:col-span-4" delay={0}>
@@ -112,17 +112,6 @@ export default function Landing() {
           </Reveal>
           <Reveal className="sm:col-span-2" delay={80}>
             <Proof icon={<Users className="h-5 w-5" />} title="Which duo is cracked" body="Winrate together vs. apart for every pair, with honest sample sizes." />
-          </Reveal>
-          <Reveal className="sm:col-span-2" delay={0}>
-            <Proof icon={<Crosshair className="h-5 w-5" />} title="Head-to-head on opposite sides" body="Records from games where stackmates landed as enemies — Arena subteams included." />
-          </Reveal>
-          <Reveal className="sm:col-span-4" delay={80}>
-            <Frame>
-              <div className="flex h-full flex-col justify-center p-6">
-                <p className="font-display text-xl font-semibold tracking-tight">Every number carries its sample size.</p>
-                <p className="mt-2 max-w-md text-sm text-ink-dim">Synergy stays hidden below 3 shared games. We never over-claim a 3-game streak — that&apos;s how you earn the trash talk.</p>
-              </div>
-            </Frame>
           </Reveal>
         </div>
       </section>
