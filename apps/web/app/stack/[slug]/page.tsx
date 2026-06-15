@@ -36,11 +36,7 @@ import { RoutePose } from "@/components/rift/RoutePose";
 import { JoinWelcome } from "@/components/brand/JoinWelcome";
 import { StatRail } from "@/components/board/StatRail";
 import { Ladder } from "@/components/board/Ladder";
-import nextDynamic from "next/dynamic";
-// Heaviest interactive widget — code-split so it doesn't bloat the dashboard's first load.
-const SynergyExplorer = nextDynamic(() =>
-  import("@/components/board/SynergyExplorer").then((m) => m.SynergyExplorer),
-);
+import { SynergyExplorer } from "@/components/board/SynergyExplorer";
 import { Activity } from "@/components/board/Activity";
 import { Awards } from "@/components/board/Awards";
 import { RoleMatrix } from "@/components/board/RoleMatrix";

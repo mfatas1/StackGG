@@ -22,13 +22,17 @@ export async function getFrequentTeammates(
     wins: string;
   }>(
     `WITH my AS (
-       SELECT m.match_id,
+       -- Bound to the most recent SR games and carry raw so we expand the JSON once,
+       -- not all-time × twice. 80 games is plenty to surface who you queue with.
+       SELECT m.match_id, m.raw,
          (SELECT (p->>'teamId')::int
             FROM jsonb_array_elements(m.raw->'info'->'participants') p
            WHERE p->>'puuid' = $1) AS my_team
        FROM matches m
        JOIN match_participants mp ON mp.match_id = m.match_id AND mp.puuid = $1
        WHERE m.raw IS NOT NULL AND m.queue_id <> 1700
+       ORDER BY m.game_start DESC
+       LIMIT 80
      )
      SELECT p->>'puuid' AS puuid,
             p->>'riotIdGameName' AS name,
@@ -36,8 +40,7 @@ export async function getFrequentTeammates(
             count(*)::text AS games,
             count(*) FILTER (WHERE (p->>'win')::boolean)::text AS wins
      FROM my
-     JOIN matches m ON m.match_id = my.match_id
-     CROSS JOIN LATERAL jsonb_array_elements(m.raw->'info'->'participants') p
+     CROSS JOIN LATERAL jsonb_array_elements(my.raw->'info'->'participants') p
      WHERE (p->>'teamId')::int = my.my_team AND p->>'puuid' <> $1
      GROUP BY 1, 2, 3
      HAVING count(*) >= $3
