@@ -13,9 +13,11 @@ export function SiteFooter() {
               Stack<span className="text-primary">GG</span>
             </span>
           </div>
-          <nav className="flex gap-5 text-sm text-ink-dim">
+          <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-ink-dim">
             <Link href="/" className="hover:text-ink">Home</Link>
             <Link href="/stack/new" className="hover:text-ink">Create a stack</Link>
+            <Link href="/privacy" className="hover:text-ink">Privacy</Link>
+            <Link href="/terms" className="hover:text-ink">Terms</Link>
             <Link href="/legal" className="hover:text-ink">Legal</Link>
           </nav>
         </div>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { RoutePose } from "@/components/rift/RoutePose";
 
 export const metadata = { title: "Legal — StackGG", alternates: { canonical: "/legal" } };
@@ -24,6 +25,11 @@ export default function Legal() {
       </p>
       <h2 className="text-lg font-semibold text-ink">Removing your data</h2>
       <p>A stack owner can remove any member from the stack settings, which deletes that member&apos;s participation rows for the stack.</p>
+
+      <p className="pt-2">
+        See also our <Link href="/privacy" className="text-gold hover:underline">Privacy Policy</Link> and{" "}
+        <Link href="/terms" className="text-gold hover:underline">Terms of Service</Link>.
+      </p>
     </div>
   );
 }
