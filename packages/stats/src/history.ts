@@ -1,7 +1,214 @@
 import { query, type Queryable, QUEUES } from "@crewstats/shared";
 import type { MatchHistoryItem } from "@crewstats/shared";
-import { queueIdsForSlug, slugForQueueId } from "./util.js";
+import { queueIdsForSlug, slugForQueueId, NOT_REMAKE_SQL } from "./util.js";
 import type { QueueSlug } from "@crewstats/shared";
+
+// Canonical lane → the role strings that map to it (Riot uses TOP/JUNGLE/MIDDLE/
+// BOTTOM/UTILITY; we accept common aliases defensively).
+const ROLE_ALIASES: Record<string, string[]> = {
+  TOP: ["TOP"],
+  JUNGLE: ["JUNGLE"],
+  MIDDLE: ["MIDDLE", "MID"],
+  BOTTOM: ["BOTTOM", "BOT", "ADC"],
+  UTILITY: ["UTILITY", "SUPPORT", "SUP"],
+};
+// Reverse: any raw role string (uppercased) → its canonical lane key.
+const ALIAS_TO_CANON: Record<string, string> = Object.fromEntries(
+  Object.entries(ROLE_ALIASES).flatMap(([canon, aliases]) => aliases.map((a) => [a, canon])),
+);
+
+/** Canonical lanes the player actually played a given champion in (for the current
+ *  queue filter) — used to gray out impossible lane filters while a champ is selected. */
+export async function getChampionLanes(
+  client: Queryable,
+  puuid: string,
+  championId: number,
+  opts: { slug?: QueueSlug } = {},
+): Promise<string[]> {
+  const queueIds = opts.slug ? queueIdsForSlug(opts.slug) : null;
+  const params: unknown[] = [puuid, championId];
+  let where = `mp.puuid = $1 AND mp.champion_id = $2 AND ${NOT_REMAKE_SQL} AND mp.role IS NOT NULL AND mp.role <> ''`;
+  if (queueIds) {
+    where += ` AND m.queue_id = ANY($3::int[])`;
+    params.push(queueIds);
+  }
+  const rows = await query<{ role: string }>(
+    `SELECT DISTINCT upper(mp.role) AS role
+       FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id
+      WHERE ${where}`,
+    params,
+    client,
+  );
+  const out = new Set<string>();
+  for (const r of rows) {
+    const canon = ALIAS_TO_CANON[r.role];
+    if (canon) out.add(canon);
+  }
+  return [...out];
+}
+
+/** Queue slugs the player actually played a given champion in — used to drop the champ
+ *  filter when switching to a queue where that champ has no games. */
+export async function getChampionQueues(client: Queryable, puuid: string, championId: number): Promise<QueueSlug[]> {
+  const rows = await query<{ queue_id: number }>(
+    `SELECT DISTINCT m.queue_id
+       FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id
+      WHERE mp.puuid = $1 AND mp.champion_id = $2 AND ${NOT_REMAKE_SQL}`,
+    [puuid, championId],
+    client,
+  );
+  const out = new Set<QueueSlug>();
+  for (const r of rows) {
+    const s = slugForQueueId(r.queue_id);
+    if (s !== "all") out.add(s);
+  }
+  return [...out];
+}
+
+/** Aggregate stats for the player's current filter (queue + champion), over the FULL
+ *  filtered set — not just the page shown. Remakes excluded. */
+export interface FilteredStats {
+  games: number;
+  wins: number;
+  losses: number;
+  winrate: number | null;
+  avgKills: number;
+  avgDeaths: number;
+  avgAssists: number;
+  kda: number;
+  csPerMin: number;
+  avgDamage: number;
+  avgVision: number;
+}
+
+export async function getFilteredStats(
+  client: Queryable,
+  puuid: string,
+  opts: { slug?: QueueSlug; championId?: number; role?: string } = {},
+): Promise<FilteredStats> {
+  const queueIds = opts.slug ? queueIdsForSlug(opts.slug) : null;
+  const params: unknown[] = [puuid];
+  let i = 2;
+  let where = `mp.puuid = $1 AND ${NOT_REMAKE_SQL}`;
+  if (queueIds) {
+    where += ` AND m.queue_id = ANY($${i}::int[])`;
+    params.push(queueIds);
+    i++;
+  }
+  if (opts.championId != null) {
+    where += ` AND mp.champion_id = $${i}`;
+    params.push(opts.championId);
+    i++;
+  }
+  const roleAliases = opts.role ? ROLE_ALIASES[opts.role] : undefined;
+  if (roleAliases) {
+    where += ` AND upper(mp.role) = ANY($${i}::text[])`;
+    params.push(roleAliases);
+    i++;
+  }
+  const rows = await query<{
+    games: number;
+    wins: number;
+    sum_k: number;
+    sum_d: number;
+    sum_a: number;
+    sum_cs: number;
+    sum_dur: number;
+    avg_k: number;
+    avg_d: number;
+    avg_a: number;
+    avg_dmg: number;
+    avg_vis: number;
+  }>(
+    `SELECT count(*)::int AS games,
+            count(*) FILTER (WHERE mp.win)::int AS wins,
+            COALESCE(sum(mp.kills),0)::int AS sum_k,
+            COALESCE(sum(mp.deaths),0)::int AS sum_d,
+            COALESCE(sum(mp.assists),0)::int AS sum_a,
+            COALESCE(sum(mp.cs),0)::int AS sum_cs,
+            COALESCE(sum(m.game_duration),0)::int AS sum_dur,
+            COALESCE(avg(mp.kills),0)::float AS avg_k,
+            COALESCE(avg(mp.deaths),0)::float AS avg_d,
+            COALESCE(avg(mp.assists),0)::float AS avg_a,
+            COALESCE(avg(mp.damage),0)::float AS avg_dmg,
+            COALESCE(avg(mp.vision_score),0)::float AS avg_vis
+       FROM match_participants mp
+       JOIN matches m ON m.match_id = mp.match_id
+      WHERE ${where}`,
+    params,
+    client,
+  );
+  const r = rows[0];
+  const games = r?.games ?? 0;
+  const wins = r?.wins ?? 0;
+  return {
+    games,
+    wins,
+    losses: games - wins,
+    winrate: games ? wins / games : null,
+    avgKills: r?.avg_k ?? 0,
+    avgDeaths: r?.avg_d ?? 0,
+    avgAssists: r?.avg_a ?? 0,
+    kda: r && r.sum_d > 0 ? (r.sum_k + r.sum_a) / r.sum_d : (r?.sum_k ?? 0) + (r?.sum_a ?? 0),
+    csPerMin: r && r.sum_dur > 0 ? r.sum_cs / (r.sum_dur / 60) : 0,
+    avgDamage: r?.avg_dmg ?? 0,
+    avgVision: r?.avg_vis ?? 0,
+  };
+}
+
+/** A player's champion pool for the current queue/lane filter — most-played first,
+ *  with games + winrate — to drive a "click a champion to filter" selector. */
+export interface ChampPoolEntry {
+  championId: number;
+  championName: string;
+  games: number;
+  wins: number;
+  winrate: number | null;
+}
+
+export async function getChampionPool(
+  client: Queryable,
+  puuid: string,
+  opts: { slug?: QueueSlug; role?: string; limit?: number } = {},
+): Promise<ChampPoolEntry[]> {
+  const queueIds = opts.slug ? queueIdsForSlug(opts.slug) : null;
+  const limit = Math.min(opts.limit ?? 12, 30);
+  const params: unknown[] = [puuid];
+  let i = 2;
+  let where = `mp.puuid = $1 AND ${NOT_REMAKE_SQL}`;
+  if (queueIds) {
+    where += ` AND m.queue_id = ANY($${i}::int[])`;
+    params.push(queueIds);
+    i++;
+  }
+  const roleAliases = opts.role ? ROLE_ALIASES[opts.role] : undefined;
+  if (roleAliases) {
+    where += ` AND upper(mp.role) = ANY($${i}::text[])`;
+    params.push(roleAliases);
+    i++;
+  }
+  params.push(limit);
+  const rows = await query<{ champion_id: number; champion_name: string; games: number; wins: number }>(
+    `SELECT mp.champion_id, mp.champion_name,
+            count(*)::int AS games,
+            count(*) FILTER (WHERE mp.win)::int AS wins
+       FROM match_participants mp
+       JOIN matches m ON m.match_id = mp.match_id
+      WHERE ${where}
+      GROUP BY mp.champion_id, mp.champion_name
+      ORDER BY games DESC, wins DESC
+      LIMIT $${i}`,
+    params,
+    client,
+  );
+  return rows.map((r) => ({
+    championId: r.champion_id,
+    championName: r.champion_name,
+    games: r.games,
+    wins: r.wins,
+    winrate: r.games ? r.wins / r.games : null,
+  }));
+}
 
 /**
  * Per-player match history (op.gg-style game-by-game list). Optionally filtered
@@ -14,6 +221,7 @@ export async function getMatchHistory(
   opts: {
     slug?: QueueSlug;
     championId?: number;
+    role?: string;
     limit?: number;
     offset?: number;
     crewPuuids?: string[];
@@ -34,6 +242,12 @@ export async function getMatchHistory(
   if (opts.championId != null) {
     where += ` AND mp.champion_id = $${i}`;
     params.push(opts.championId);
+    i++;
+  }
+  const roleAliases = opts.role ? ROLE_ALIASES[opts.role] : undefined;
+  if (roleAliases) {
+    where += ` AND upper(mp.role) = ANY($${i}::text[])`;
+    params.push(roleAliases);
     i++;
   }
   const limIdx = i;

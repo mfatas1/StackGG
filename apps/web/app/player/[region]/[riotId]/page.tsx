@@ -1,32 +1,44 @@
 import Link from "next/link";
-import { X } from "lucide-react";
 import { getPool } from "@crewstats/shared";
-import { getMatchHistory } from "@crewstats/stats";
+import { getMatchHistory, getFilteredStats, getChampionPool, getChampionLanes, getChampionQueues } from "@crewstats/stats";
 import { getOrBuildSnapshot } from "@/lib/snapshot";
-import { ProfileIcon, RankCrest, ChampIcon } from "@/components/kit/Avatar";
+import { ProfileIcon, RankCrest } from "@/components/kit/Avatar";
 import { WLPills, StaleChip } from "@/components/kit/Badge";
 import { Frame, Section, PanelHead, Empty } from "@/components/kit/Frame";
 import { Button } from "@/components/kit/Button";
 import { ModeCards } from "@/components/board/ModeCards";
+import { FilteredSummary } from "@/components/board/FilteredSummary";
+import { RoleFilter } from "@/components/board/RoleFilter";
+import { ChampionFilter } from "@/components/board/ChampionFilter";
 import { MatchList } from "@/components/board/MatchList";
 import { BackfillBanner } from "@/components/board/BackfillBanner";
 import { RefreshProfileButton } from "@/components/board/RefreshProfileButton";
-import { QueueTabs, parseQueueSlug } from "@/components/kit/Tabs";
+import { parseQueueSlug } from "@/components/kit/Tabs";
+import { LANES } from "@/lib/filters";
 import { PlayerLink } from "@/components/kit/links";
 import { RoutePose } from "@/components/rift/RoutePose";
 import { pct, timeAgo } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
+const QUEUE_FILTER_LABEL: Record<string, string> = {
+  all: "All queues",
+  ranked: "Ranked Solo",
+  flex: "Ranked Flex",
+  aram: "ARAM",
+  arena: "Arena",
+};
+const LANE_LABEL: Record<string, string> = Object.fromEntries(LANES.map((l) => [l.key, l.label]));
+
 export default async function PlayerSnapshot({
   params,
   searchParams,
 }: {
   params: Promise<{ region: string; riotId: string }>;
-  searchParams: Promise<{ q?: string; champ?: string; refreshing?: string }>;
+  searchParams: Promise<{ q?: string; champ?: string; role?: string; refreshing?: string }>;
 }) {
   const { region, riotId: raw } = await params;
-  const { q, champ, refreshing } = await searchParams;
+  const { q, champ, role, refreshing } = await searchParams;
   const riotId = decodeURIComponent(raw);
   const result = await getOrBuildSnapshot(riotId, region);
 
@@ -47,13 +59,22 @@ export default async function PlayerSnapshot({
   const queue = parseQueueSlug(q);
   const championId = champ ? Number(champ) : undefined;
   const basePath = `/player/${region}/${encodeURIComponent(riotId)}`;
-  // history + total-game count both depend only on the puuid — run them in parallel.
-  const [history, totalRes] = await Promise.all([
-    getMatchHistory(getPool(), s.identity.puuid, { slug: queue, championId, limit: 20 }),
+  const roleKey = role && LANE_LABEL[role] ? role : undefined;
+  // history + champion pool + total-game count all depend only on the puuid — parallel.
+  const [history, champions, totalRes] = await Promise.all([
+    getMatchHistory(getPool(), s.identity.puuid, { slug: queue, championId, role: roleKey, limit: 20 }),
+    getChampionPool(getPool(), s.identity.puuid, { slug: queue, role: roleKey, limit: 12 }),
     getPool().query<{ n: number }>(`SELECT count(*)::int AS n FROM match_participants WHERE puuid = $1`, [s.identity.puuid]),
   ]);
-  const champName = championId ? history[0]?.championName : undefined;
+  const champName = championId ? (history[0]?.championName ?? champions.find((c) => c.championId === championId)?.championName) : undefined;
+  const champLanes = championId != null ? await getChampionLanes(getPool(), s.identity.puuid, championId, { slug: queue }) : undefined;
+  const champQueues = championId != null ? await getChampionQueues(getPool(), s.identity.puuid, championId) : undefined;
   const totalGames = totalRes.rows[0]?.n ?? 0;
+
+  // Aggregate for the current view (queue + lane + champion) — always shown; with nothing
+  // selected it's the overall summary.
+  const filteredStats = await getFilteredStats(getPool(), s.identity.puuid, { slug: queue, championId, role: roleKey });
+  const filterLabel = [QUEUE_FILTER_LABEL[queue], roleKey ? LANE_LABEL[roleKey] : null].filter(Boolean).join(" · ") || "All queues";
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
@@ -92,19 +113,14 @@ export default async function PlayerSnapshot({
         </div>
       </Frame>
 
-      <ModeCards modes={s.modes} />
+      <ModeCards modes={s.modes} basePath={basePath} active={queue} champ={champ} role={roleKey} champQueues={champQueues} />
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        <Section title="Match history" action={<QueueTabs basePath={basePath} active={queue} preserve={{ champ }} />}>
-          {champName && (
-            <div className="notch notch-sm mb-3 inline-flex items-center gap-2 border border-line bg-surface-2/60 px-3 py-1 text-xs">
-              <ChampIcon name={champName} size={16} />
-              <span>{champName} only</span>
-              <Link href={queue === "all" ? basePath : `${basePath}?q=${queue}`} aria-label="Clear champion filter">
-                <X className="h-3.5 w-3.5 text-ink-faint hover:text-ink" />
-              </Link>
-            </div>
-          )}
+        <Section title="Match history" action={<RoleFilter basePath={basePath} active={roleKey} q={queue} champ={champ} availableRoles={champLanes} />}>
+          <div className="mb-3 space-y-3">
+            <ChampionFilter champions={champions} basePath={basePath} activeId={championId} q={queue} role={roleKey} />
+            <FilteredSummary stats={filteredStats} champName={champName} label={filterLabel} />
+          </div>
           <MatchList items={history} basePath={basePath} mePuuid={s.identity.puuid} />
         </Section>
 
