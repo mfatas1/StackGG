@@ -24,7 +24,7 @@ import { StatRail } from "@/components/board/StatRail";
 import { SynergyExplorer } from "@/components/board/SynergyExplorer";
 import { Awards } from "@/components/board/Awards";
 import { RoleMatrix } from "@/components/board/RoleMatrix";
-import { RiftMap } from "@/components/board/RiftMap";
+import { LaneLeaders } from "@/components/board/LaneLeaders";
 import { QueueProvider, QueueTabsClient, LadderForQueue, ActivityForQueue } from "@/components/board/QueueBoard";
 import type { QueueBoards } from "@/components/board/QueueBoard";
 
@@ -170,7 +170,7 @@ export default async function CrewDashboardPage({
       <Frame>
         <PanelHead title="Best in each lane" />
         <div className="p-4 pt-4">
-          <RiftMap rows={roleMatrix} crewSlug={slug} />
+          <LaneLeaders rows={roleMatrix} crewSlug={slug} />
         </div>
       </Frame>
 
