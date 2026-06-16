@@ -130,88 +130,77 @@ export default async function PlayerSnapshot({
 
       <ModeCards modes={s.modes} basePath={basePath} active={queue} champ={champ} role={roleKey} champQueues={champQueues} />
 
-      <div className={isSelf || isStackmate ? "grid gap-6 lg:grid-cols-[1.4fr_1fr]" : ""}>
-        <Section title="Match history" action={<RoleFilter basePath={basePath} active={roleKey} q={queue} champ={champ} availableRoles={champLanes} />}>
-          <div className="mb-3 space-y-3">
-            <ChampionFilter champions={champions} basePath={basePath} activeId={championId} q={queue} role={roleKey} />
-            <FilteredSummary stats={filteredStats} champName={champName} label={filterLabel} />
+      {/* Stackmate: your shared context with this player — a full-width strip, not a rail. */}
+      {isStackmate && (
+        <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+          <Frame>
+            <PanelHead title="You two together" />
+            <div className="p-4 pt-3">
+              {duo && duo.games > 0 ? (
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className={`font-display text-3xl font-bold ${duo.wins / duo.games >= 0.5 ? "text-win" : "text-loss"}`}>
+                    {pct(duo.wins / duo.games)}
+                  </span>
+                  <span className="font-mono text-2xs text-ink-faint tnum">
+                    {duo.wins}W {duo.games - duo.wins}L · {duo.games}g on the same team
+                  </span>
+                  <span className="w-full text-2xs text-ink-faint">Your shared games are highlighted in the match history below.</span>
+                </div>
+              ) : (
+                <Empty>You haven&apos;t shared a tracked game yet.</Empty>
+              )}
+            </div>
+          </Frame>
+          <Frame>
+            <PanelHead title="Shared stacks" />
+            <ul className="flex flex-wrap gap-1.5 p-4 pt-3">
+              {relation.sharedCrews.map((c) => (
+                <li key={c.slug}>
+                  <Link
+                    href={`/stack/${c.slug}/player/${encodeURIComponent(riotId)}`}
+                    className="notch notch-sm inline-flex items-center gap-1.5 border border-line/60 bg-surface-2/40 px-3 py-1.5 text-sm font-medium transition-colors hover:text-gold"
+                  >
+                    {c.name} <span className="text-2xs text-ink-faint">view →</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Frame>
+        </div>
+      )}
+
+      {/* Self: your private "who you queue with" funnel — full-width, wraps into columns. */}
+      {isSelf && s.frequentTeammates.length > 0 && (
+        <Frame>
+          <PanelHead title="Players you queue with" />
+          <div className="p-4 pt-3">
+            <p className="mb-3 text-sm text-ink-dim">
+              <span className="font-semibold text-ink">{s.frequentTeammates.length}</span> players you queue with often — create a stack to see how you play <em>together</em>.
+            </p>
+            <ul className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+              {s.frequentTeammates.slice(0, 6).map((t) => (
+                <li key={t.puuid} className="notch notch-sm flex items-center justify-between gap-2 border border-line/60 bg-surface-2/40 px-3 py-2 text-sm">
+                  <PlayerLink riotId={t.riotId} tag={t.tag} region={region} className="min-w-0 truncate font-medium" />
+                  <span className="shrink-0 text-2xs text-ink-faint tnum">
+                    {t.gamesTogether}g · {t.gamesTogether ? pct(t.winsTogether / t.gamesTogether) : "—"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <Link href="/stack/new" className="mt-4 inline-block">
+              <Button>Create a stack</Button>
+            </Link>
           </div>
-          <MatchList items={history} basePath={basePath} crewSlug={isStackmate ? relation.sharedCrews[0]?.slug : undefined} mePuuid={s.identity.puuid} />
-        </Section>
+        </Frame>
+      )}
 
-        {/* Self: your private "who you queue with" funnel. */}
-        {isSelf && (
-          <aside>
-            <Frame>
-              <PanelHead title="Players you queue with" />
-              <div className="p-4 pt-3">
-                {s.frequentTeammates.length === 0 ? (
-                  <Empty>Once more of your history is in, your frequent teammates appear here.</Empty>
-                ) : (
-                  <>
-                    <p className="mb-3 text-sm text-ink-dim">
-                      We found <span className="font-semibold text-ink">{s.frequentTeammates.length}</span> players you queue with often. Create a stack to see how you play <em>together</em>.
-                    </p>
-                    <ul className="space-y-1.5">
-                      {s.frequentTeammates.map((t) => (
-                        <li key={t.puuid} className="notch notch-sm flex items-center justify-between border border-line/60 bg-surface-2/40 px-3 py-2 text-sm">
-                          <PlayerLink riotId={t.riotId} tag={t.tag} region={region} className="font-medium" />
-                          <span className="text-2xs text-ink-faint tnum">
-                            {t.gamesTogether}g · {t.gamesTogether ? pct(t.winsTogether / t.gamesTogether) : "—"} together
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                    <Link href="/stack/new" className="mt-4 block">
-                      <Button className="w-full">Create a stack</Button>
-                    </Link>
-                  </>
-                )}
-              </div>
-            </Frame>
-          </aside>
-        )}
-
-        {/* Stackmate: your shared context with this player. */}
-        {isStackmate && (
-          <aside className="space-y-4">
-            <Frame>
-              <PanelHead title="You two together" />
-              <div className="p-4 pt-3">
-                {duo && duo.games > 0 ? (
-                  <>
-                    <div className="flex items-baseline gap-2">
-                      <span className={`font-display text-3xl font-bold ${(duo.wins / duo.games) >= 0.5 ? "text-win" : "text-loss"}`}>
-                        {pct(duo.wins / duo.games)}
-                      </span>
-                      <span className="font-mono text-2xs text-ink-faint tnum">
-                        {duo.wins}W {duo.games - duo.wins}L · {duo.games}g on the same team
-                      </span>
-                    </div>
-                    <p className="mt-2 text-2xs text-ink-faint">Your games together are highlighted in the match history.</p>
-                  </>
-                ) : (
-                  <Empty>You haven&apos;t shared a tracked game yet.</Empty>
-                )}
-              </div>
-            </Frame>
-            <Frame>
-              <PanelHead title="Shared stacks" />
-              <ul className="space-y-1.5 p-4 pt-3">
-                {relation.sharedCrews.map((c) => (
-                  <li key={c.slug}>
-                    <Link href={`/stack/${c.slug}/player/${encodeURIComponent(riotId)}`} className="notch notch-sm flex items-center justify-between border border-line/60 bg-surface-2/40 px-3 py-2 text-sm font-medium transition-colors hover:text-gold">
-                      {c.name}
-                      <span className="text-2xs text-ink-faint">view in stack →</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </Frame>
-          </aside>
-        )}
-      </div>
-
+      <Section title="Match history" action={<RoleFilter basePath={basePath} active={roleKey} q={queue} champ={champ} availableRoles={champLanes} />}>
+        <div className="mb-3 space-y-3">
+          <ChampionFilter champions={champions} basePath={basePath} activeId={championId} q={queue} role={roleKey} />
+          <FilteredSummary stats={filteredStats} champName={champName} label={filterLabel} />
+        </div>
+        <MatchList items={history} basePath={basePath} crewSlug={isStackmate ? relation.sharedCrews[0]?.slug : undefined} mePuuid={s.identity.puuid} />
+      </Section>
     </div>
   );
 }
