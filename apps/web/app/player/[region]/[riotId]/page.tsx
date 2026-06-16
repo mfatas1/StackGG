@@ -76,7 +76,7 @@ export default async function PlayerSnapshot({
     getPool().query<{ n: number }>(`SELECT count(*)::int AS n FROM match_participants WHERE puuid = $1`, [s.identity.puuid]),
   ]);
   const duo = isStackmate ? await getDuoRecord(relation.viewerPuuids, s.identity.puuid) : null;
-  const insights = isSelf ? await getPlayerInsights(getPool(), s.identity.puuid) : [];
+  const insights = await getPlayerInsights(getPool(), s.identity.puuid);
   const champName = championId ? (history[0]?.championName ?? champions.find((c) => c.championId === championId)?.championName) : undefined;
   const champLanes = championId != null ? await getChampionLanes(getPool(), s.identity.puuid, championId, { slug: queue }) : undefined;
   const champQueues = championId != null ? await getChampionQueues(getPool(), s.identity.puuid, championId) : undefined;
@@ -132,6 +132,9 @@ export default async function PlayerSnapshot({
 
       <ModeCards modes={s.modes} basePath={basePath} active={queue} champ={champ} role={roleKey} champQueues={champQueues} />
 
+      {/* Scouting insights — shown on every profile. */}
+      <PlayerInsights insights={insights} self={isSelf} />
+
       {/* Stackmate: your shared context with this player — a full-width strip, not a rail. */}
       {isStackmate && (
         <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
@@ -170,9 +173,6 @@ export default async function PlayerSnapshot({
           </Frame>
         </div>
       )}
-
-      {/* Self: personal insight cards from your own ranked history. */}
-      {isSelf && <PlayerInsights insights={insights} />}
 
       {/* Self: your private "who you queue with" funnel — full-width, wraps into columns. */}
       {isSelf && s.frequentTeammates.length > 0 && (
