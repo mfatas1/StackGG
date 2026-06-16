@@ -2,9 +2,9 @@ import { query, type Queryable, QUEUES } from "@crewstats/shared";
 import { NOT_REMAKE_SQL } from "./util.js";
 
 /**
- * "Your edge" — personal, advice-framed takeaways computed from a player's own ranked
- * history (SR solo + flex). Self-view only; surfaces best/worst champ, strongest role,
- * early-vs-late tendency and current streak. Empty when there isn't enough data.
+ * "Edge" — descriptive, scouting-style takeaways from a player's ranked history (SR solo
+ * + flex): best/weakest champ, strongest role, carry rate, early-vs-late tendency and
+ * current streak. Viewer-neutral copy so it reads on any profile. Empty when thin.
  */
 export interface PlayerInsight {
   kind: "bestChamp" | "worstChamp" | "bestRole" | "earlyGame" | "lateGame" | "streakUp" | "streakDown" | "carryRate";
@@ -37,7 +37,7 @@ export async function getPlayerInsights(client: Queryable, puuid: string): Promi
     out.push({
       kind: "bestChamp",
       headline: `Best pick: ${bestChamp.champion_name}`,
-      detail: `${P(bestChamp.wr)} over ${bestChamp.games} games — keep it in the rotation.`,
+      detail: `${P(bestChamp.wr)} over ${bestChamp.games} games.`,
       tone: "good",
       championName: bestChamp.champion_name,
     });
@@ -46,8 +46,8 @@ export async function getPlayerInsights(client: Queryable, puuid: string): Promi
   if (worstChamp && worstChamp.wr <= 0.45 && worstChamp.champion_name !== bestChamp?.champion_name) {
     out.push({
       kind: "worstChamp",
-      headline: `Tough on ${worstChamp.champion_name}`,
-      detail: `${P(worstChamp.wr)} over ${worstChamp.games} games — maybe bench it for a bit.`,
+      headline: `Weakest pick: ${worstChamp.champion_name}`,
+      detail: `${P(worstChamp.wr)} over ${worstChamp.games} games.`,
       tone: "bad",
       championName: worstChamp.champion_name,
     });
@@ -89,9 +89,9 @@ export async function getPlayerInsights(client: Queryable, puuid: string): Promi
     if (carry && carry.total >= 15) {
       const rate = carry.mvp / carry.total;
       if (rate >= 0.45) {
-        out.push({ kind: "carryRate", headline: "You hard-carry", detail: `Top score on your team in ${P(rate)} of games — they lean on you.`, tone: "good" });
+        out.push({ kind: "carryRate", headline: "Hard carry", detail: `Top score on the team in ${P(rate)} of games.`, tone: "good" });
       } else if (rate >= 0.3) {
-        out.push({ kind: "carryRate", headline: "Reliable carry", detail: `Top score on your team in ${P(rate)} of games.`, tone: "good" });
+        out.push({ kind: "carryRate", headline: "Reliable carry", detail: `Top score on the team in ${P(rate)} of games.`, tone: "good" });
       }
     }
   } catch {
@@ -117,8 +117,8 @@ export async function getPlayerInsights(client: Queryable, puuid: string): Promi
     if (Math.abs(sw - lw) >= 0.08) {
       out.push(
         sw > lw
-          ? { kind: "earlyGame", headline: "Strong early", detail: `${P(sw)} before 30 min vs ${P(lw)} after — close games out faster.`, tone: "neutral" }
-          : { kind: "lateGame", headline: "You scale", detail: `${P(lw)} after 30 min vs ${P(sw)} before — play for the long game.`, tone: "neutral" },
+          ? { kind: "earlyGame", headline: "Early-game player", detail: `${P(sw)} before 30 min, ${P(lw)} after.`, tone: "neutral" }
+          : { kind: "lateGame", headline: "Late-game scaler", detail: `${P(lw)} after 30 min, ${P(sw)} before.`, tone: "neutral" },
       );
     }
   }
@@ -137,8 +137,8 @@ export async function getPlayerInsights(client: Queryable, puuid: string): Promi
     if (n >= 3) {
       out.push(
         recent[0]!.win
-          ? { kind: "streakUp", headline: `${n}-game win streak`, detail: "You're heating up — ride it.", tone: "good" }
-          : { kind: "streakDown", headline: `${n}-game skid`, detail: "Rough patch — maybe take a breather.", tone: "bad" },
+          ? { kind: "streakUp", headline: `${n}-game win streak`, detail: "Hot right now.", tone: "good" }
+          : { kind: "streakDown", headline: `${n}-game skid`, detail: "Cold right now.", tone: "bad" },
       );
     }
   }

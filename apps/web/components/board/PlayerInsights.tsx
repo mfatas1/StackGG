@@ -5,12 +5,12 @@ import { ChampIcon, RoleIcon } from "../kit/Avatar";
 
 const TONE: Record<PlayerInsight["tone"], string> = { good: "text-win", bad: "text-loss", neutral: "text-ink" };
 
-/** "Your edge" — self-only insight cards generated from the player's own ranked history. */
-export function PlayerInsights({ insights }: { insights: PlayerInsight[] }) {
+/** "Edge" — scouting-style insight cards from a player's ranked history (any profile). */
+export function PlayerInsights({ insights, self = false }: { insights: PlayerInsight[]; self?: boolean }) {
   if (!insights.length) return null;
   return (
     <Frame>
-      <PanelHead title="Your edge" />
+      <PanelHead title={self ? "Your edge" : "Edge"} />
       <ul className="grid gap-2 p-4 pt-3 sm:grid-cols-2">
         {insights.map((i, idx) => (
           <li key={idx} className="notch notch-sm flex items-start gap-3 border border-line/60 bg-surface-2/40 px-3 py-2.5">
