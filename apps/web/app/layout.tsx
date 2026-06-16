@@ -6,12 +6,13 @@ import { SiteHeader } from "@/components/site/Header";
 import { SiteFooter } from "@/components/site/Footer";
 import { ThemeSwitcher } from "@/components/theme/ThemeSwitcher";
 import { themeInitScript } from "@/components/theme/themeStore";
+import { SITE_URL } from "@/lib/site";
 
 const display = Cinzel({ subsets: ["latin"], weight: ["600", "700", "800"], variable: "--font-display", display: "swap" });
 const sans = Hanken_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-sans", display: "swap" });
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-mono", display: "swap" });
 
-const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://stackgg.app";
+const siteUrl = SITE_URL;
 const tagline =
   "op.gg tells you how you play. StackGG tells you how your group plays together. A shared stack page for your League squad, rendered inside the Rift.";
 
