@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { getPool } from "@crewstats/shared";
-import { getMatchHistory, getFilteredStats, getChampionPool, getChampionLanes, getChampionQueues } from "@crewstats/stats";
+import { getMatchHistory, getFilteredStats, getChampionPool, getChampionLanes, getChampionQueues, getPlayerInsights } from "@crewstats/stats";
 import { getOrBuildSnapshot } from "@/lib/snapshot";
 import { getViewerRelation, getDuoRecord } from "@/lib/viewer";
+import { PlayerInsights } from "@/components/board/PlayerInsights";
 import { ProfileIcon, RankCrest } from "@/components/kit/Avatar";
 import { WLPills, StaleChip } from "@/components/kit/Badge";
 import { Frame, Section, PanelHead, Empty } from "@/components/kit/Frame";
@@ -75,6 +76,7 @@ export default async function PlayerSnapshot({
     getPool().query<{ n: number }>(`SELECT count(*)::int AS n FROM match_participants WHERE puuid = $1`, [s.identity.puuid]),
   ]);
   const duo = isStackmate ? await getDuoRecord(relation.viewerPuuids, s.identity.puuid) : null;
+  const insights = isSelf ? await getPlayerInsights(getPool(), s.identity.puuid) : [];
   const champName = championId ? (history[0]?.championName ?? champions.find((c) => c.championId === championId)?.championName) : undefined;
   const champLanes = championId != null ? await getChampionLanes(getPool(), s.identity.puuid, championId, { slug: queue }) : undefined;
   const champQueues = championId != null ? await getChampionQueues(getPool(), s.identity.puuid, championId) : undefined;
@@ -168,6 +170,9 @@ export default async function PlayerSnapshot({
           </Frame>
         </div>
       )}
+
+      {/* Self: personal insight cards from your own ranked history. */}
+      {isSelf && <PlayerInsights insights={insights} />}
 
       {/* Self: your private "who you queue with" funnel — full-width, wraps into columns. */}
       {isSelf && s.frequentTeammates.length > 0 && (
