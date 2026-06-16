@@ -2,9 +2,11 @@ import Link from "next/link";
 import { Plus, Crown, Users2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { getUserCrews } from "@/lib/crews";
-import { SignInForm } from "@/components/forms";
-import { Frame, Empty } from "@/components/kit/Frame";
+import { getClaimedAccounts } from "@/lib/account";
+import { SignInForm, LinkRiotForm, UnlinkButton } from "@/components/forms";
+import { Frame, Empty, PanelHead } from "@/components/kit/Frame";
 import { Button } from "@/components/kit/Button";
+import { ProfileIcon, RankCrest } from "@/components/kit/Avatar";
 import { RoutePose } from "@/components/rift/RoutePose";
 
 export const dynamic = "force-dynamic";
@@ -28,16 +30,51 @@ export default async function AccountPage() {
     );
   }
 
-  const crews = await getUserCrews(user.id);
+  const [crews, accounts] = await Promise.all([getUserCrews(user.id), getClaimedAccounts(user.id)]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 px-4 py-10 sm:px-6">
       <RoutePose name="surface" />
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight">Your stacks</h1>
-          <p className="mt-1 text-sm text-ink-dim">{user.email}</p>
+      <div>
+        <h1 className="font-display text-3xl font-bold tracking-tight">Your account</h1>
+        <p className="mt-1 text-sm text-ink-dim">{user.email}</p>
+      </div>
+
+      {/* Linked Riot accounts */}
+      <Frame>
+        <PanelHead title="Riot accounts" />
+        <div className="space-y-4 p-4 pt-3">
+          {accounts.length === 0 ? (
+            <p className="text-sm text-ink-dim">
+              Connect your Riot account to claim your profile and stats. This is what tells StackGG which player is you.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {accounts.map((a) => (
+                <li key={a.puuid} className="notch notch-sm flex items-center gap-3 border border-line/60 bg-surface-2/40 px-3 py-2">
+                  <ProfileIcon id={a.profileIcon} name={a.riotId} size={32} />
+                  <Link href={`/player/${a.region}/${encodeURIComponent(`${a.riotId}#${a.tag}`)}`} className="min-w-0 flex-1 truncate text-sm font-medium hover:text-gold">
+                    {a.riotId}
+                    <span className="text-ink-faint">#{a.tag}</span>
+                  </Link>
+                  <RankCrest rank={a.rankSolo} size={18} />
+                  <span className="text-2xs uppercase text-ink-faint">{a.region}</span>
+                  <UnlinkButton puuid={a.puuid} />
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="border-t border-line/40 pt-4">
+            <p className="mb-3 text-2xs font-semibold uppercase tracking-[0.12em] text-ink-faint">
+              {accounts.length === 0 ? "Connect an account" : "Link another account"}
+            </p>
+            <LinkRiotForm />
+          </div>
         </div>
+      </Frame>
+
+      <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
+        <h2 className="font-display text-2xl font-bold tracking-tight">Your stacks</h2>
         <Link href="/stack/new">
           <Button>
             <Plus className="h-4 w-4" /> New stack

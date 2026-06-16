@@ -448,3 +448,76 @@ export function JoinForm({ inviteCode }: { inviteCode: string }) {
     </form>
   );
 }
+
+/** Link a Riot ID to the signed-in user (the "connect your account" form on /account). */
+export function LinkRiotForm() {
+  const router = useRouter();
+  const [riotId, setRiotId] = useState("");
+  const [region, setRegion] = useState("euw1");
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [err, setErr] = useState("");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setState("loading");
+    setErr("");
+    const res = await fetch("/api/account/link", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ riotId, region }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setErr(data.error ?? "Could not link that account.");
+      setState("error");
+      return;
+    }
+    setRiotId("");
+    setState("idle");
+    router.refresh();
+  }
+
+  return (
+    <form className="space-y-4" onSubmit={submit}>
+      <Field label="Riot ID">
+        <Input placeholder="Name#TAG" value={riotId} onChange={(e) => setRiotId(e.target.value)} required />
+      </Field>
+      <Field label="Region">
+        <RegionSelect value={region} onChange={setRegion} />
+      </Field>
+      {state === "error" && <p className="text-sm text-loss">{err}</p>}
+      <Button className="w-full" loading={state === "loading"}>
+        {state === "loading" ? "Linking & pulling games…" : "Connect account"}
+      </Button>
+    </form>
+  );
+}
+
+/** Unlink a claimed Riot account. */
+export function UnlinkButton({ puuid }: { puuid: string }) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  async function unlink() {
+    setLoading(true);
+    try {
+      await fetch("/api/account/unlink", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ puuid }),
+      });
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={unlink}
+      disabled={loading}
+      className="text-2xs text-ink-faint transition-colors hover:text-loss disabled:opacity-50"
+    >
+      {loading ? "…" : "Unlink"}
+    </button>
+  );
+}
