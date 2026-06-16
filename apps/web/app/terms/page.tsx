@@ -7,7 +7,7 @@ export const metadata = { title: "Terms of Service — StackGG", alternates: { c
 // and the governing-law jurisdiction below before relying on these.
 const UPDATED = "16 June 2026";
 const CONTACT = "contact@stackgg.app";
-const JURISDICTION = "[your country / jurisdiction]";
+const JURISDICTION = "France";
 
 export default function Terms() {
   return (
