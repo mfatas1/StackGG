@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Activity } from "lucide-react";
+import { TrendingUp, TrendingDown, Activity, Crown } from "lucide-react";
 import type { PlayerInsight } from "@crewstats/stats";
 import { Frame, PanelHead } from "../kit/Frame";
 import { ChampIcon, RoleIcon } from "../kit/Avatar";
@@ -20,6 +20,10 @@ export function PlayerInsights({ insights }: { insights: PlayerInsight[] }) {
               ) : i.role ? (
                 <span className="grid h-7 w-7 place-items-center rounded bg-bg/50">
                   <RoleIcon role={i.role} size={18} />
+                </span>
+              ) : i.kind === "carryRate" ? (
+                <span className="grid h-7 w-7 place-items-center rounded bg-bg/50 text-gold">
+                  <Crown className="h-4 w-4" />
                 </span>
               ) : (
                 <span className={`grid h-7 w-7 place-items-center rounded bg-bg/50 ${TONE[i.tone]}`}>

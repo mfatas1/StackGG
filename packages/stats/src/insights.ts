@@ -7,7 +7,7 @@ import { NOT_REMAKE_SQL } from "./util.js";
  * early-vs-late tendency and current streak. Empty when there isn't enough data.
  */
 export interface PlayerInsight {
-  kind: "bestChamp" | "worstChamp" | "bestRole" | "earlyGame" | "lateGame" | "streakUp" | "streakDown";
+  kind: "bestChamp" | "worstChamp" | "bestRole" | "earlyGame" | "lateGame" | "streakUp" | "streakDown" | "carryRate";
   headline: string;
   detail: string;
   tone: "good" | "bad" | "neutral";
@@ -73,6 +73,29 @@ export async function getPlayerInsights(client: Queryable, puuid: string): Promi
         role: best.role,
       });
     }
+  }
+
+  // ---- Carry rate (top carry score on your team) — uses the stored carry metric. ----
+  try {
+    const carry = (
+      await query<{ total: number; mvp: number }>(
+        `SELECT count(*)::int AS total, count(*) FILTER (WHERE mp.is_team_mvp)::int AS mvp
+           FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id
+          WHERE mp.puuid = $1 AND m.queue_id IN ${SR} AND ${NOT_REMAKE_SQL} AND mp.is_team_mvp IS NOT NULL`,
+        [puuid],
+        client,
+      )
+    )[0];
+    if (carry && carry.total >= 15) {
+      const rate = carry.mvp / carry.total;
+      if (rate >= 0.45) {
+        out.push({ kind: "carryRate", headline: "You hard-carry", detail: `Top score on your team in ${P(rate)} of games — they lean on you.`, tone: "good" });
+      } else if (rate >= 0.3) {
+        out.push({ kind: "carryRate", headline: "Reliable carry", detail: `Top score on your team in ${P(rate)} of games.`, tone: "good" });
+      }
+    }
+  } catch {
+    // is_team_mvp column not present (pre-005 DB) — skip this insight.
   }
 
   // ---- Early vs late game (split at 30 min) ----
