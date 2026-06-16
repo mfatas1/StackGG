@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getPool } from "@crewstats/shared";
 import { getMatchHistory, getFilteredStats, getChampionPool, getChampionLanes, getChampionQueues } from "@crewstats/stats";
 import { getOrBuildSnapshot } from "@/lib/snapshot";
+import { getViewerRelation, getDuoRecord } from "@/lib/viewer";
 import { ProfileIcon, RankCrest } from "@/components/kit/Avatar";
 import { WLPills, StaleChip } from "@/components/kit/Badge";
 import { Frame, Section, PanelHead, Empty } from "@/components/kit/Frame";
@@ -60,12 +61,20 @@ export default async function PlayerSnapshot({
   const championId = champ ? Number(champ) : undefined;
   const basePath = `/player/${region}/${encodeURIComponent(riotId)}`;
   const roleKey = role && LANE_LABEL[role] ? role : undefined;
+
+  // Who's looking: self (their own linked account), a stackmate (shares a stack), or a
+  // stranger. This drives which private/crew sections appear.
+  const relation = await getViewerRelation(s.identity.puuid);
+  const isSelf = relation.tier === "self";
+  const isStackmate = relation.tier === "stackmate";
+
   // history + champion pool + total-game count all depend only on the puuid — parallel.
   const [history, champions, totalRes] = await Promise.all([
-    getMatchHistory(getPool(), s.identity.puuid, { slug: queue, championId, role: roleKey, limit: 20 }),
+    getMatchHistory(getPool(), s.identity.puuid, { slug: queue, championId, role: roleKey, limit: 20, crewPuuids: relation.sharedCrewPuuids }),
     getChampionPool(getPool(), s.identity.puuid, { slug: queue, role: roleKey, limit: 12 }),
     getPool().query<{ n: number }>(`SELECT count(*)::int AS n FROM match_participants WHERE puuid = $1`, [s.identity.puuid]),
   ]);
+  const duo = isStackmate ? await getDuoRecord(relation.viewerPuuids, s.identity.puuid) : null;
   const champName = championId ? (history[0]?.championName ?? champions.find((c) => c.championId === championId)?.championName) : undefined;
   const champLanes = championId != null ? await getChampionLanes(getPool(), s.identity.puuid, championId, { slug: queue }) : undefined;
   const champQueues = championId != null ? await getChampionQueues(getPool(), s.identity.puuid, championId) : undefined;
@@ -91,6 +100,12 @@ export default async function PlayerSnapshot({
                 {s.identity.riotId}
                 <span className="text-ink-faint">#{s.identity.tag}</span>
               </span>
+              {isSelf && <span className="notch notch-sm bg-gold/15 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-gold">You</span>}
+              {isStackmate && (
+                <span className="notch notch-sm bg-primary/15 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-primary">
+                  {relation.sharedCrews.length === 1 ? `In ${relation.sharedCrews[0]!.name}` : "In your stacks"}
+                </span>
+              )}
               {s.identity.isStale && <StaleChip />}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
@@ -109,50 +124,92 @@ export default async function PlayerSnapshot({
             <span className="text-2xs text-ink-faint">Form</span>
             <WLPills form={s.recentForm.slice(0, 5)} />
           </div>
-          <RefreshProfileButton riotId={riotId} region={region} />
+          {(isSelf || isStackmate) && <RefreshProfileButton riotId={riotId} region={region} />}
         </div>
       </Frame>
 
       <ModeCards modes={s.modes} basePath={basePath} active={queue} champ={champ} role={roleKey} champQueues={champQueues} />
 
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div className={isSelf || isStackmate ? "grid gap-6 lg:grid-cols-[1.4fr_1fr]" : ""}>
         <Section title="Match history" action={<RoleFilter basePath={basePath} active={roleKey} q={queue} champ={champ} availableRoles={champLanes} />}>
           <div className="mb-3 space-y-3">
             <ChampionFilter champions={champions} basePath={basePath} activeId={championId} q={queue} role={roleKey} />
             <FilteredSummary stats={filteredStats} champName={champName} label={filterLabel} />
           </div>
-          <MatchList items={history} basePath={basePath} mePuuid={s.identity.puuid} />
+          <MatchList items={history} basePath={basePath} crewSlug={isStackmate ? relation.sharedCrews[0]?.slug : undefined} mePuuid={s.identity.puuid} />
         </Section>
 
-        <aside>
-          <Frame>
-            <PanelHead title="Players you queue with" />
-            <div className="p-4 pt-3">
-              {s.frequentTeammates.length === 0 ? (
-                <Empty>Once more of your history is in, your frequent teammates appear here.</Empty>
-              ) : (
-                <>
-                  <p className="mb-3 text-sm text-ink-dim">
-                    We found <span className="font-semibold text-ink">{s.frequentTeammates.length}</span> players you queue with often. Create a stack to see how you play <em>together</em>.
-                  </p>
-                  <ul className="space-y-1.5">
-                    {s.frequentTeammates.map((t) => (
-                      <li key={t.puuid} className="notch notch-sm flex items-center justify-between border border-line/60 bg-surface-2/40 px-3 py-2 text-sm">
-                        <PlayerLink riotId={t.riotId} tag={t.tag} region={region} className="font-medium" />
-                        <span className="text-2xs text-ink-faint tnum">
-                          {t.gamesTogether}g · {t.gamesTogether ? pct(t.winsTogether / t.gamesTogether) : "—"} together
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Link href="/stack/new" className="mt-4 block">
-                    <Button className="w-full">Create a stack</Button>
-                  </Link>
-                </>
-              )}
-            </div>
-          </Frame>
-        </aside>
+        {/* Self: your private "who you queue with" funnel. */}
+        {isSelf && (
+          <aside>
+            <Frame>
+              <PanelHead title="Players you queue with" />
+              <div className="p-4 pt-3">
+                {s.frequentTeammates.length === 0 ? (
+                  <Empty>Once more of your history is in, your frequent teammates appear here.</Empty>
+                ) : (
+                  <>
+                    <p className="mb-3 text-sm text-ink-dim">
+                      We found <span className="font-semibold text-ink">{s.frequentTeammates.length}</span> players you queue with often. Create a stack to see how you play <em>together</em>.
+                    </p>
+                    <ul className="space-y-1.5">
+                      {s.frequentTeammates.map((t) => (
+                        <li key={t.puuid} className="notch notch-sm flex items-center justify-between border border-line/60 bg-surface-2/40 px-3 py-2 text-sm">
+                          <PlayerLink riotId={t.riotId} tag={t.tag} region={region} className="font-medium" />
+                          <span className="text-2xs text-ink-faint tnum">
+                            {t.gamesTogether}g · {t.gamesTogether ? pct(t.winsTogether / t.gamesTogether) : "—"} together
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    <Link href="/stack/new" className="mt-4 block">
+                      <Button className="w-full">Create a stack</Button>
+                    </Link>
+                  </>
+                )}
+              </div>
+            </Frame>
+          </aside>
+        )}
+
+        {/* Stackmate: your shared context with this player. */}
+        {isStackmate && (
+          <aside className="space-y-4">
+            <Frame>
+              <PanelHead title="You two together" />
+              <div className="p-4 pt-3">
+                {duo && duo.games > 0 ? (
+                  <>
+                    <div className="flex items-baseline gap-2">
+                      <span className={`font-display text-3xl font-bold ${(duo.wins / duo.games) >= 0.5 ? "text-win" : "text-loss"}`}>
+                        {pct(duo.wins / duo.games)}
+                      </span>
+                      <span className="font-mono text-2xs text-ink-faint tnum">
+                        {duo.wins}W {duo.games - duo.wins}L · {duo.games}g on the same team
+                      </span>
+                    </div>
+                    <p className="mt-2 text-2xs text-ink-faint">Your games together are highlighted in the match history.</p>
+                  </>
+                ) : (
+                  <Empty>You haven&apos;t shared a tracked game yet.</Empty>
+                )}
+              </div>
+            </Frame>
+            <Frame>
+              <PanelHead title="Shared stacks" />
+              <ul className="space-y-1.5 p-4 pt-3">
+                {relation.sharedCrews.map((c) => (
+                  <li key={c.slug}>
+                    <Link href={`/stack/${c.slug}/player/${encodeURIComponent(riotId)}`} className="notch notch-sm flex items-center justify-between border border-line/60 bg-surface-2/40 px-3 py-2 text-sm font-medium transition-colors hover:text-gold">
+                      {c.name}
+                      <span className="text-2xs text-ink-faint">view in stack →</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Frame>
+          </aside>
+        )}
       </div>
 
     </div>
