@@ -1,6 +1,5 @@
 import type { MetadataRoute } from "next";
-
-const base = process.env.NEXT_PUBLIC_BASE_URL || "https://stackgg.app";
+import { SITE_URL as base } from "@/lib/site";
 
 /**
  * Only the public marketing pages belong in the sitemap. Player/crew pages are private
