@@ -48,7 +48,7 @@ export async function getModeStats(
      WHERE mp.puuid = $1 AND m.queue_id = $2 AND ${NOT_REMAKE_SQL}
      GROUP BY mp.champion_id, mp.champion_name
      ORDER BY count(*) DESC, count(*) FILTER (WHERE mp.win) DESC, mp.champion_name ASC
-     LIMIT 5`,
+     LIMIT 6`,
     [puuid, queueId],
     client,
   );

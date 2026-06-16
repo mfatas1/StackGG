@@ -16,15 +16,6 @@ const kdaTone = (r: number) => (r >= 4 ? "text-gold" : r >= 2.5 ? "text-win" : r
 const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`);
 const QUEUE_NAME: Record<string, string> = { ranked: "Ranked Solo", flex: "Ranked Flex", aram: "ARAM", arena: "Arena", all: "Game" };
 
-/** Performance grade from KDA — honest, KDA-based (no fake OP score). */
-function grade(k: number, d: number, a: number): { label: string; cls: string } | null {
-  const r = kdaRatio(k, d, a);
-  if (d === 0 && k + a >= 5) return { label: "Flawless", cls: "bg-gold/15 text-gold" };
-  if (r >= 5) return { label: "Hard carry", cls: "bg-gold/15 text-gold" };
-  if (r >= 3) return { label: "Carried", cls: "bg-win/12 text-win" };
-  if (r < 1 && d >= 7) return { label: "Fed", cls: "bg-loss/12 text-loss" };
-  return null;
-}
 
 export function MatchList({
   items,
@@ -61,7 +52,6 @@ function MatchRow({ m, basePath, crewSlug, mePuuid }: { m: MatchHistoryItem; bas
   const sameSide = m.crewmates.filter((c) => c.sameSide);
   const enemySide = m.crewmates.filter((c) => !c.sameSide);
   const carrierKey = mvpOf([me, ...sameSide])?.riotId ?? me.riotId;
-  const g = grade(m.kills, m.deaths, m.assists);
 
   return (
     <li className={`notch notch-sm border-l-2 bg-surface-2/40 ${remake ? "border-l-line" : good ? "border-l-win" : "border-l-loss"}`}>
@@ -84,7 +74,11 @@ function MatchRow({ m, basePath, crewSlug, mePuuid }: { m: MatchHistoryItem; bas
             <span className={`text-2xs font-semibold ${remake ? "text-ink-faint" : good ? "text-win" : "text-loss"}`}>
               {remake ? "Remake" : arena ? placementSuffix(m.placement ?? 0) : m.win ? "Win" : "Loss"}
             </span>
-            {!remake && m.isTeamMvp && !arena && <Crown className="h-3.5 w-3.5 text-gold" aria-label="Team MVP — highest carry score on your team" />}
+            {!remake && m.isTeamMvp && !arena && (
+              <span className="inline-flex items-center gap-0.5 text-2xs font-semibold text-gold" title="Team MVP — highest carry score on your team">
+                <Crown className="h-3.5 w-3.5" /> MVP
+              </span>
+            )}
           </div>
           <div className="mt-0.5 text-2xs text-ink-faint">
             {QUEUE_NAME[m.queueSlug] ?? "Game"} · {gameDuration(m.gameDuration)} · {timeAgo(m.gameStart)}
@@ -101,8 +95,6 @@ function MatchRow({ m, basePath, crewSlug, mePuuid }: { m: MatchHistoryItem; bas
             ))}
           </div>
         )}
-
-        {g && <span className={`hidden shrink-0 px-1.5 py-0.5 text-[10px] font-semibold sm:inline-block ${g.cls}`}>{g.label}</span>}
 
         <div className="shrink-0 text-right">
           <div className={`font-mono text-sm font-semibold tnum ${kdaTone(ratio)}`}>{kdaText(m.kills, m.deaths, m.assists)}</div>
