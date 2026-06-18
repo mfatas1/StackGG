@@ -172,6 +172,31 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   const wr = (a: Agg) => (a.games ? a.wins / a.games : 0);
   const kda = (a: Agg) => (a.avgKills + a.avgAssists) / Math.max(a.avgDeaths, 0.6);
 
+  // Absolute floors: a superlative should reflect an objectively good/bad number, not
+  // just the best/worst in *this* stack — so a winning record isn't branded "Anchor"
+  // and a strong line isn't branded "Liability" merely for trailing better teammates.
+  // Grounded in commonly-cited LoL benchmarks: KDA >2 is "good" and >3 strong; ~5-6
+  // deaths/game is average; non-support farming sits ~5-6 CS/min and 7+ is strong;
+  // vision is role-skewed (supports far higher); ~6 kills & ~9 assists/game are typical.
+  // These are gates on the relative winner, so they only ever *suppress* an undeserved
+  // tag — never invent one. Role/length-dependent totals (champ damage, gold, damage
+  // taken) are intentionally left as pure stack-relative: no fair absolute line exists
+  // across roles and game lengths. Tune any number here in one place.
+  const FLOOR = {
+    carryWr: 0.5, //  Stack Carry — must actually be winning
+    anchorWr: 0.5, // Anchor — must actually be losing (strictly below even)
+    goodKda: 3.0, //  KDA Player — genuinely strong KDA
+    badKda: 2.1, //   Liability — below a respectable line
+    manyDeaths: 7, // Int Andy — objectively high deaths/game
+    fewDeaths: 4, //  Cockroach — objectively durable
+    goodCspm: 6.5, // Farm King — strong farming
+    lowCspm: 5, //    Minion Hater — weak farming
+    goodVision: 40, //Warden — genuinely high vision
+    lowVision: 25, // Wardless — low vision
+    manyKills: 8, //  Bloodthirsty — objectively high kills/game
+    manyAssists: 10, //Team Player — objectively high assists/game
+  };
+
   // Award a relative superlative: holder = the player at the extreme (max or min) of a
   // metric, among players with enough games (optionally a stricter pool).
   const rel = (
@@ -188,11 +213,12 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   };
 
   // ---- Deaths / survival ----
-  rel("max", (a) => a.avgDeaths, { key: "int", label: "Int Andy", tone: "shame", priority: 92, meaning: "Dies the most per game in the stack.", detail: (a) => `${a.avgDeaths.toFixed(1)} deaths/game` });
-  rel("min", (a) => a.avgDeaths, { key: "cockroach", label: "Cockroach", tone: "flex", priority: 74, meaning: "Dies the least per game — impossible to put down.", detail: (a) => `${a.avgDeaths.toFixed(1)} deaths/game` });
+  // Int Andy only for objectively high deaths; Cockroach only for objectively low ones.
+  rel("max", (a) => a.avgDeaths, { key: "int", label: "Int Andy", tone: "shame", priority: 92, meaning: "Dies the most per game in the stack.", detail: (a) => `${a.avgDeaths.toFixed(1)} deaths/game` }, { gate: (a) => a.avgDeaths >= FLOOR.manyDeaths });
+  rel("min", (a) => a.avgDeaths, { key: "cockroach", label: "Cockroach", tone: "flex", priority: 74, meaning: "Dies the least per game — impossible to put down.", detail: (a) => `${a.avgDeaths.toFixed(1)} deaths/game` }, { gate: (a) => a.avgDeaths <= FLOOR.fewDeaths });
 
   // ---- Kills / damage ----
-  rel("max", (a) => a.avgKills, { key: "bloodthirsty", label: "Bloodthirsty", tone: "flex", priority: 66, meaning: "Most kills per game in the stack.", detail: (a) => `${a.avgKills.toFixed(1)} kills/game` });
+  rel("max", (a) => a.avgKills, { key: "bloodthirsty", label: "Bloodthirsty", tone: "flex", priority: 66, meaning: "Most kills per game in the stack.", detail: (a) => `${a.avgKills.toFixed(1)} kills/game` }, { gate: (a) => a.avgKills >= FLOOR.manyKills });
   rel("min", (a) => a.avgKills, { key: "pacifist", label: "Pacifist", tone: "neutral", priority: 58, meaning: "Fewest kills per game — a lover, not a fighter.", detail: (a) => `${a.avgKills.toFixed(1)} kills/game` });
   rel("max", (a) => a.avgDamage, { key: "glasscannon", label: "Glass Cannon", tone: "flex", priority: 68, meaning: "Deals the most damage to champions per game.", detail: (a) => `${num(a.avgDamage)} dmg/game` });
   rel("min", (a) => a.avgDamage, { key: "decoration", label: "Decoration", tone: "shame", priority: 64, meaning: "Least damage to champions — basically a ward with legs.", detail: (a) => `${num(a.avgDamage)} dmg/game` });
@@ -200,8 +226,10 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   rel("min", (a) => a.avgTank, { key: "backline", label: "Backline", tone: "neutral", priority: 48, meaning: "Takes the least damage — safely out of range at all times.", detail: (a) => `${num(a.avgTank)} taken/game` });
 
   // ---- Win rate / streaks ----
-  rel("max", wr, { key: "carry", label: "Stack Carry", tone: "flex", priority: 76, meaning: "Highest win rate in the group — the one carrying.", detail: (a) => `${pctStr(wr(a))} over ${a.games}g` });
-  rel("min", wr, { key: "anchor", label: "Anchor", tone: "shame", priority: 82, meaning: "Lowest win rate in the group — the dead weight.", detail: (a) => `${pctStr(wr(a))} over ${a.games}g` });
+  // Carry only counts if they're actually winning; Anchor only if actually losing — a
+  // 50%+ record shouldn't be branded dead weight just for trailing the rest of the group.
+  rel("max", wr, { key: "carry", label: "Stack Carry", tone: "flex", priority: 76, meaning: "Highest win rate in the group — the one carrying.", detail: (a) => `${pctStr(wr(a))} over ${a.games}g` }, { gate: (a) => wr(a) > FLOOR.carryWr });
+  rel("min", wr, { key: "anchor", label: "Anchor", tone: "shame", priority: 82, meaning: "Lowest win rate in the group — the dead weight.", detail: (a) => `${pctStr(wr(a))} over ${a.games}g` }, { gate: (a) => wr(a) < FLOOR.anchorWr });
   // Coinflip — closest to a perfect 50/50.
   {
     const pool = elig;
@@ -223,7 +251,10 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
     const pool = elig
       .map((a) => ({ a, f: recentForm.get(a.puuid) }))
       .filter((x) => x.f && x.f.games >= 8)
-      .map((x) => ({ a: x.a, wr: x.f!.wins / x.f!.games, n: x.f!.games }));
+      .map((x) => ({ a: x.a, wr: x.f!.wins / x.f!.games, n: x.f!.games }))
+      // "In Form" should mean actually hot — a winning recent record, not just the
+      // least-cold player in a slumping stack.
+      .filter((x) => x.wr >= 0.5);
     if (enough && pool.length) {
       const h = pool.reduce((b, x) => (x.wr > b.wr || (x.wr === b.wr && x.n > b.n) ? x : b));
       add(h.a.puuid, { key: "inform", label: "In Form", tone: "flex", priority: 83, meaning: "Hottest recent form — best win rate over the last 15 games.", detail: `${pctStr(h.wr)} over last ${h.n}` });
@@ -231,22 +262,28 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   }
 
   // ---- Farm / gold ----
-  rel("max", (a) => a.avgCspm, { key: "farm", label: "Farm King", tone: "flex", priority: 54, meaning: "Highest CS per minute — never misses a minion.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` });
-  rel("min", (a) => a.avgCspm, { key: "minionhater", label: "Minion Hater", tone: "shame", priority: 50, meaning: "Lowest CS per minute — farming is beneath them.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` });
+  // Farm King needs genuinely strong CS; Minion Hater needs genuinely weak CS. (Supports
+  // farm little by design, so this still mostly lands on non-supports — see note below.)
+  rel("max", (a) => a.avgCspm, { key: "farm", label: "Farm King", tone: "flex", priority: 54, meaning: "Highest CS per minute — never misses a minion.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.avgCspm >= FLOOR.goodCspm });
+  rel("min", (a) => a.avgCspm, { key: "minionhater", label: "Minion Hater", tone: "shame", priority: 50, meaning: "Lowest CS per minute — farming is beneath them.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.avgCspm < FLOOR.lowCspm });
   rel("max", (a) => a.avgGold, { key: "rich", label: "Gold Digger", tone: "neutral", priority: 44, meaning: "Earns the most gold per game.", detail: (a) => `${num(a.avgGold)} gold/game` });
   rel("min", (a) => a.avgGold, { key: "broke", label: "Broke", tone: "shame", priority: 42, meaning: "Earns the least gold — perpetually behind.", detail: (a) => `${num(a.avgGold)} gold/game` });
 
   // ---- Vision / utility ----
-  rel("min", (a) => a.avgVision, { key: "wardless", label: "Wardless", tone: "shame", priority: 70, meaning: "Lowest vision score — wards are someone else's problem.", detail: (a) => `${a.avgVision.toFixed(0)} vision avg` });
-  rel("max", (a) => a.avgVision, { key: "warden", label: "Warden", tone: "flex", priority: 49, meaning: "Highest vision score — actually buys control wards.", detail: (a) => `${a.avgVision.toFixed(0)} vision avg` });
-  rel("max", (a) => a.avgAssists, { key: "teamplayer", label: "Team Player", tone: "flex", priority: 46, meaning: "Most assists per game — always in the fight for the team.", detail: (a) => `${a.avgAssists.toFixed(1)} assists/game` });
+  // Vision is role-skewed (supports run far higher), so these floors keep Wardless off
+  // someone with decent vision and Warden off a stack where nobody really wards.
+  rel("min", (a) => a.avgVision, { key: "wardless", label: "Wardless", tone: "shame", priority: 70, meaning: "Lowest vision score — wards are someone else's problem.", detail: (a) => `${a.avgVision.toFixed(0)} vision avg` }, { gate: (a) => a.avgVision < FLOOR.lowVision });
+  rel("max", (a) => a.avgVision, { key: "warden", label: "Warden", tone: "flex", priority: 49, meaning: "Highest vision score — actually buys control wards.", detail: (a) => `${a.avgVision.toFixed(0)} vision avg` }, { gate: (a) => a.avgVision >= FLOOR.goodVision });
+  rel("max", (a) => a.avgAssists, { key: "teamplayer", label: "Team Player", tone: "flex", priority: 46, meaning: "Most assists per game — always in the fight for the team.", detail: (a) => `${a.avgAssists.toFixed(1)} assists/game` }, { gate: (a) => a.avgAssists >= FLOOR.manyAssists });
   rel("min", (a) => a.avgAssists, { key: "lonewolf", label: "Lone Wolf", tone: "neutral", priority: 45, meaning: "Fewest assists — does its own thing.", detail: (a) => `${a.avgAssists.toFixed(1)} assists/game` });
   rel("max", (a) => a.avgCc, { key: "ccbot", label: "CC Machine", tone: "flex", priority: 47, meaning: "Locks enemies down the most (crowd-control time).", detail: (a) => `${a.avgCc.toFixed(0)}s CC/game` }, { gate: (a) =>a.avgCc > 0 });
   rel("max", (a) => a.healShield, { key: "medic", label: "Pocket Medic", tone: "flex", priority: 51, meaning: "Most healing + shielding poured into teammates.", detail: (a) => `${num(a.healShield)} healed/shielded` }, { gate: (a) =>a.healShield > 0 });
 
   // ---- KDA ----
-  rel("max", kda, { key: "kdaplayer", label: "KDA Player", tone: "neutral", priority: 55, meaning: "Best overall KDA — may or may not ever press a button.", detail: (a) => `${kda(a).toFixed(1)} KDA` });
-  rel("min", kda, { key: "liability", label: "The Liability", tone: "shame", priority: 78, meaning: "Worst KDA in the stack.", detail: (a) => `${kda(a).toFixed(1)} KDA` });
+  // KDA Player only if the best KDA is genuinely strong; Liability only if the worst is
+  // actually poor — a 2.1+ KDA is respectable and shouldn't be branded a liability.
+  rel("max", kda, { key: "kdaplayer", label: "KDA Player", tone: "neutral", priority: 55, meaning: "Best overall KDA — may or may not ever press a button.", detail: (a) => `${kda(a).toFixed(1)} KDA` }, { gate: (a) => kda(a) >= FLOOR.goodKda });
+  rel("min", kda, { key: "liability", label: "The Liability", tone: "shame", priority: 78, meaning: "Worst KDA in the stack.", detail: (a) => `${kda(a).toFixed(1)} KDA` }, { gate: (a) => kda(a) < FLOOR.badKda });
 
   // ---- Activity / misc ----
   rel("max", (a) => a.games, { key: "nolife", label: "No-Life", tone: "neutral", priority: 62, meaning: "Most games tracked — touch grass.", detail: (a) => `${a.games} games` });
