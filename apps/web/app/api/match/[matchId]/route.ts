@@ -39,7 +39,7 @@ interface RawParticipant {
   largestKillingSpree?: number;
   largestMultiKill?: number;
   objectivesStolen?: number;
-  challenges?: { teamDamagePercentage?: number; soloKills?: number; saveAllyFromDeathTakedowns?: number };
+  challenges?: { teamDamagePercentage?: number; soloKills?: number; saveAllyFromDeath?: number };
 }
 interface RawInfo {
   queueId: number;
@@ -76,7 +76,7 @@ function mapPlayers(participants: RawParticipant[]) {
     multikill: p.largestMultiKill ?? 0,
     soloKills: p.challenges?.soloKills ?? 0,
     objectivesStolen: p.objectivesStolen ?? 0,
-    allySaves: p.challenges?.saveAllyFromDeathTakedowns ?? 0,
+    allySaves: p.challenges?.saveAllyFromDeath ?? 0,
   }));
 }
 

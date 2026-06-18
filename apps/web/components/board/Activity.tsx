@@ -57,7 +57,7 @@ function ActivityRow({ m }: { m: ActivityItem }) {
             <span className="text-2xs font-medium text-ink-faint">· {QUEUE_NAME[m.queueSlug] ?? "Game"}</span>
             {carrier && (
               <span className="notch notch-sm flex items-center gap-1 bg-gold/15 px-1.5 py-0.5 text-2xs font-bold uppercase tracking-wide text-gold">
-                <Crown className="h-3 w-3" aria-hidden /> Carried
+                <Crown className="h-3 w-3" aria-hidden /> MVP
               </span>
             )}
           </div>
@@ -80,7 +80,7 @@ function ActivityRow({ m }: { m: ActivityItem }) {
               >
                 <ChampIcon name={p.championName} size={20} />
                 <span className={`font-medium ${isCarry ? "text-gold" : ""}`}>{p.riotId}</span>
-                {isCarry && <Crown className="h-3 w-3 text-gold" aria-label="carried" />}
+                {isCarry && <Crown className="h-3 w-3 text-gold" aria-label="MVP" />}
                 <span className="font-mono text-ink-dim tnum">
                   {p.kills}/{p.deaths}/{p.assists}
                 </span>
