@@ -186,7 +186,7 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
     carryWr: 0.5, //  Stack Carry — must actually be winning
     anchorWr: 0.5, // Anchor — must actually be losing (strictly below even)
     goodKda: 3.0, //  KDA Player — genuinely strong KDA
-    badKda: 2.1, //   Liability — below a respectable line
+    badKda: 2.0, //   Liability — strictly below an even 2.0 KDA
     manyDeaths: 7, // Int Andy — objectively high deaths/game
     fewDeaths: 4, //  Cockroach — objectively durable
     goodCspm: 6.5, // Farm King — strong farming
