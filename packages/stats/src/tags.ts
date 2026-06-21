@@ -14,11 +14,54 @@ export interface PlayerTag {
   meaning: string;
   detail: string;
   priority: number;
+  /**
+   * Axis this tag measures. Most metrics are correlated (kills/damage/KDA all say
+   * "good fighter"; vision/assists/heal all say "support"), so one player would sweep a
+   * whole cluster of near-synonym tags. We keep only a player's single highest-priority
+   * tag per axis. The rare/meme + identity tags use a unique axis (their own key) so they
+   * never collapse into each other — they're genuinely independent achievements.
+   */
+  cluster: string;
+  /**
+   * How far the holder leads the runner-up, as a fraction (0.30 = 30% ahead of #2).
+   * Normalized so it's comparable across metrics with wildly different units (kills vs
+   * damage vs gold). Used to pick which tag in a cluster a player most genuinely earned —
+   * e.g. a fragger who is 40% ahead on damage but only 8% ahead on kills shows Glass
+   * Cannon, not Bloodthirsty. ~5 means they're alone at the extreme (no runner-up).
+   */
+  lead: number;
 }
 
 const SR = `(${QUEUES.RANKED_SOLO}, ${QUEUES.RANKED_FLEX})`;
 const MIN_GAMES = 10;
-const MAX_PER_PLAYER = 20; // sanity cap; the UI shows ~5 inline and the rest behind a "+N" pill
+// After axis-dedup, show at most this many tags per player — a tight, curated set beats a
+// wall of correlated superlatives. With dedup, 3 distinct tags is plenty.
+const CAP_PER_PLAYER = 3;
+// A relative superlative is only awarded if the holder clearly separates from the
+// runner-up (leads #2 by this fraction). Stops noise tags in tight crews where someone
+// edges the field by a rounding error.
+const MARGIN = 0.07;
+// Lead value for a holder with no runner-up (alone at the extreme), and the cap we clamp
+// the relative lead to so one absurd outlier doesn't dwarf every comparison.
+const DOMINANT = 5;
+// Normalized lead of the holder over #2, as a fraction of #2's value — dimensionless so
+// it's comparable across metrics. Direction-aware: for "min" tags, leading means being
+// further BELOW the runner-up.
+const relLead = (dir: "max" | "min", hv: number, sv: number) => {
+  const base = Math.max(Math.abs(sv), 1e-9);
+  const gap = dir === "max" ? (hv - sv) / base : (sv - hv) / base;
+  return Math.min(Math.max(gap, 0), DOMINANT);
+};
+
+// Axis names — tags sharing an axis are near-synonyms; a player keeps only their top one.
+const AX = {
+  combat: "combat", // kills / damage / KDA — the fighting axis (high AND low ends)
+  winrate: "winrate", // win rate / streaks / form
+  survival: "survival", // deaths / damage taken / dodging
+  econ: "econ", // CS / gold
+  utility: "utility", // vision / assists / heal-shield / CC / saves — the support axis
+  activity: "activity", // games played / play hours
+} as const;
 
 interface Agg {
   puuid: string;
@@ -202,49 +245,71 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   const rel = (
     dir: "max" | "min",
     f: (a: Agg) => number,
-    t: { key: string; label: string; tone: TagTone; priority: number; meaning: string; detail: (a: Agg) => string },
-    opts: { gate?: (a: Agg) => boolean; pool?: Agg[] } = {},
+    t: { key: string; label: string; tone: TagTone; priority: number; cluster: string; meaning: string; detail: (a: Agg) => string },
+    opts: { gate?: (a: Agg) => boolean; pool?: Agg[]; margin?: number } = {},
   ) => {
     if (!enough) return;
     const pool = (opts.pool ?? elig).filter(opts.gate ?? (() => true));
     if (!pool.length) return;
-    const holder = pool.reduce((b, a) => ((dir === "max" ? f(a) > f(b) : f(a) < f(b)) ? a : b));
-    add(holder.puuid, { key: t.key, label: t.label, tone: t.tone, priority: t.priority, meaning: t.meaning, detail: t.detail(holder) });
+    const ranked = [...pool].sort((a, b) => (dir === "max" ? f(b) - f(a) : f(a) - f(b)));
+    const holder = ranked[0]!;
+    // Distinctiveness: only award if the holder clearly beats the runner-up. If #2's value
+    // is ≤0 (e.g. nobody else got a single solo kill), any positive holder qualifies.
+    const second = ranked[1];
+    let lead = DOMINANT;
+    if (second) {
+      const hv = f(holder);
+      const sv = f(second);
+      const m = opts.margin ?? MARGIN;
+      const clear = dir === "max" ? hv >= sv * (1 + m) : sv <= 0 ? hv <= sv : hv <= sv * (1 - m);
+      if (!clear) return;
+      lead = relLead(dir, hv, sv);
+    }
+    add(holder.puuid, { key: t.key, label: t.label, tone: t.tone, priority: t.priority, cluster: t.cluster, lead, meaning: t.meaning, detail: t.detail(holder) });
   };
 
   // ---- Deaths / survival ----
   // Int Andy only for objectively high deaths; Cockroach only for objectively low ones.
-  rel("max", (a) => a.avgDeaths, { key: "int", label: "Int Andy", tone: "shame", priority: 92, meaning: "Dies the most per game in the stack.", detail: (a) => `${a.avgDeaths.toFixed(1)} deaths/game` }, { gate: (a) => a.avgDeaths >= FLOOR.manyDeaths });
-  rel("min", (a) => a.avgDeaths, { key: "cockroach", label: "Cockroach", tone: "flex", priority: 74, meaning: "Dies the least per game — impossible to put down.", detail: (a) => `${a.avgDeaths.toFixed(1)} deaths/game` }, { gate: (a) => a.avgDeaths <= FLOOR.fewDeaths });
+  rel("max", (a) => a.avgDeaths, { key: "int", label: "Int Andy", tone: "shame", priority: 92, cluster: AX.survival, meaning: "Dies the most per game in the stack.", detail: (a) => `${a.avgDeaths.toFixed(1)} deaths/game` }, { gate: (a) => a.avgDeaths >= FLOOR.manyDeaths });
+  rel("min", (a) => a.avgDeaths, { key: "cockroach", label: "Cockroach", tone: "flex", priority: 74, cluster: AX.survival, meaning: "Dies the least per game — impossible to put down.", detail: (a) => `${a.avgDeaths.toFixed(1)} deaths/game` }, { gate: (a) => a.avgDeaths <= FLOOR.fewDeaths });
 
   // ---- Kills / damage ----
-  rel("max", (a) => a.avgKills, { key: "bloodthirsty", label: "Bloodthirsty", tone: "flex", priority: 66, meaning: "Most kills per game in the stack.", detail: (a) => `${a.avgKills.toFixed(1)} kills/game` }, { gate: (a) => a.avgKills >= FLOOR.manyKills });
-  rel("min", (a) => a.avgKills, { key: "pacifist", label: "Pacifist", tone: "neutral", priority: 58, meaning: "Fewest kills per game — a lover, not a fighter.", detail: (a) => `${a.avgKills.toFixed(1)} kills/game` });
-  rel("max", (a) => a.avgDamage, { key: "glasscannon", label: "Glass Cannon", tone: "flex", priority: 68, meaning: "Deals the most damage to champions per game.", detail: (a) => `${num(a.avgDamage)} dmg/game` });
-  rel("min", (a) => a.avgDamage, { key: "decoration", label: "Decoration", tone: "shame", priority: 64, meaning: "Least damage to champions — basically a ward with legs.", detail: (a) => `${num(a.avgDamage)} dmg/game` });
-  rel("max", (a) => a.avgTank, { key: "punchingbag", label: "Punching Bag", tone: "neutral", priority: 56, meaning: "Eats the most damage per game — the frontline (or feeding).", detail: (a) => `${num(a.avgTank)} taken/game` });
-  rel("min", (a) => a.avgTank, { key: "backline", label: "Backline", tone: "neutral", priority: 48, meaning: "Takes the least damage — safely out of range at all times.", detail: (a) => `${num(a.avgTank)} taken/game` });
+  rel("max", (a) => a.avgKills, { key: "bloodthirsty", label: "Bloodthirsty", tone: "flex", priority: 66, cluster: AX.combat, meaning: "Most kills per game in the stack.", detail: (a) => `${a.avgKills.toFixed(1)} kills/game` }, { gate: (a) => a.avgKills >= FLOOR.manyKills });
+  rel("min", (a) => a.avgKills, { key: "pacifist", label: "Pacifist", tone: "neutral", priority: 58, cluster: AX.combat, meaning: "Fewest kills per game — a lover, not a fighter.", detail: (a) => `${a.avgKills.toFixed(1)} kills/game` });
+  rel("max", (a) => a.avgDamage, { key: "glasscannon", label: "Glass Cannon", tone: "flex", priority: 68, cluster: AX.combat, meaning: "Deals the most damage to champions per game.", detail: (a) => `${num(a.avgDamage)} dmg/game` });
+  rel("min", (a) => a.avgDamage, { key: "decoration", label: "Decoration", tone: "shame", priority: 64, cluster: AX.combat, meaning: "Least damage to champions — basically a ward with legs.", detail: (a) => `${num(a.avgDamage)} dmg/game` });
+  rel("max", (a) => a.avgTank, { key: "punchingbag", label: "Punching Bag", tone: "neutral", priority: 56, cluster: AX.survival, meaning: "Eats the most damage per game — the frontline (or feeding).", detail: (a) => `${num(a.avgTank)} taken/game` });
+  rel("min", (a) => a.avgTank, { key: "backline", label: "Backline", tone: "neutral", priority: 48, cluster: AX.survival, meaning: "Takes the least damage — safely out of range at all times.", detail: (a) => `${num(a.avgTank)} taken/game` });
 
   // ---- Win rate / streaks ----
   // Carry only counts if they're actually winning; Anchor only if actually losing — a
   // 50%+ record shouldn't be branded dead weight just for trailing the rest of the group.
-  rel("max", wr, { key: "carry", label: "Stack Carry", tone: "flex", priority: 76, meaning: "Highest win rate in the group — the one carrying.", detail: (a) => `${pctStr(wr(a))} over ${a.games}g` }, { gate: (a) => wr(a) > FLOOR.carryWr });
-  rel("min", wr, { key: "anchor", label: "Anchor", tone: "shame", priority: 82, meaning: "Lowest win rate in the group — the dead weight.", detail: (a) => `${pctStr(wr(a))} over ${a.games}g` }, { gate: (a) => wr(a) < FLOOR.anchorWr });
-  // Coinflip — closest to a perfect 50/50.
+  rel("max", wr, { key: "carry", label: "Stack Carry", tone: "flex", priority: 76, cluster: AX.winrate, meaning: "Highest win rate in the group — the one carrying.", detail: (a) => `${pctStr(wr(a))} over ${a.games}g` }, { gate: (a) => wr(a) > FLOOR.carryWr });
+  rel("min", wr, { key: "anchor", label: "Anchor", tone: "shame", priority: 82, cluster: AX.winrate, meaning: "Lowest win rate in the group — the dead weight.", detail: (a) => `${pctStr(wr(a))} over ${a.games}g` }, { gate: (a) => wr(a) < FLOOR.anchorWr });
+  // Coinflip — closest to a perfect 50/50. "Lead" here = how much closer to 50% than #2.
   {
-    const pool = elig;
-    if (enough && pool.length) {
-      const h = pool.reduce((b, a) => (Math.abs(wr(a) - 0.5) < Math.abs(wr(b) - 0.5) ? a : b));
-      add(h.puuid, { key: "coinflip", label: "Coinflip", tone: "neutral", priority: 88, meaning: "Win rate closest to a perfect 50/50 — a walking coin toss.", detail: `${pctStr(wr(h))} over ${h.games}g` });
+    const ranked = [...elig].sort((a, b) => Math.abs(wr(a) - 0.5) - Math.abs(wr(b) - 0.5));
+    const h = ranked[0];
+    if (enough && h) {
+      const lead = ranked[1] ? Math.min((Math.abs(wr(ranked[1]) - 0.5) - Math.abs(wr(h) - 0.5)) / 0.5, DOMINANT) : DOMINANT;
+      add(h.puuid, { key: "coinflip", label: "Coinflip", tone: "neutral", priority: 88, cluster: AX.winrate, lead, meaning: "Win rate closest to a perfect 50/50 — a walking coin toss.", detail: `${pctStr(wr(h))} over ${h.games}g` });
     }
   }
   {
-    const h = elig.map((a) => ({ a, s: winStreak.get(a.puuid) ?? 0 })).filter((x) => x.s >= 4).sort((x, y) => y.s - x.s)[0];
-    if (enough && h) add(h.a.puuid, { key: "heater", label: "Heater", tone: "flex", priority: 72, meaning: "Longest win streak in the stack.", detail: `${h.s} wins in a row` });
+    const ws = elig.map((a) => ({ a, s: winStreak.get(a.puuid) ?? 0 })).sort((x, y) => y.s - x.s);
+    const h = ws[0];
+    if (enough && h && h.s >= 4) {
+      const lead = relLead("max", h.s, ws[1]?.s ?? 0);
+      add(h.a.puuid, { key: "heater", label: "Heater", tone: "flex", priority: 72, cluster: AX.winrate, lead, meaning: "Longest win streak in the stack.", detail: `${h.s} wins in a row` });
+    }
   }
   {
-    const h = elig.map((a) => ({ a, s: lossStreak.get(a.puuid) ?? 0 })).filter((x) => x.s >= 4).sort((x, y) => y.s - x.s)[0];
-    if (enough && h) add(h.a.puuid, { key: "tilted", label: "Tilted", tone: "shame", priority: 84, meaning: "Longest losing streak in the stack — and kept queuing.", detail: `${h.s} losses in a row` });
+    const ls = elig.map((a) => ({ a, s: lossStreak.get(a.puuid) ?? 0 })).sort((x, y) => y.s - x.s);
+    const h = ls[0];
+    if (enough && h && h.s >= 4) {
+      const lead = relLead("max", h.s, ls[1]?.s ?? 0);
+      add(h.a.puuid, { key: "tilted", label: "Tilted", tone: "shame", priority: 84, cluster: AX.winrate, lead, meaning: "Longest losing streak in the stack — and kept queuing.", detail: `${h.s} losses in a row` });
+    }
   }
   {
     // In Form — best winrate over the last 15 games (min 8 to qualify).
@@ -254,53 +319,56 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
       .map((x) => ({ a: x.a, wr: x.f!.wins / x.f!.games, n: x.f!.games }))
       // "In Form" should mean actually hot — a winning recent record, not just the
       // least-cold player in a slumping stack.
-      .filter((x) => x.wr >= 0.5);
-    if (enough && pool.length) {
-      const h = pool.reduce((b, x) => (x.wr > b.wr || (x.wr === b.wr && x.n > b.n) ? x : b));
-      add(h.a.puuid, { key: "inform", label: "In Form", tone: "flex", priority: 83, meaning: "Hottest recent form — best win rate over the last 15 games.", detail: `${pctStr(h.wr)} over last ${h.n}` });
+      .filter((x) => x.wr >= 0.5)
+      .sort((x, y) => y.wr - x.wr || y.n - x.n);
+    const h = pool[0];
+    if (enough && h) {
+      const lead = relLead("max", h.wr, pool[1]?.wr ?? 0);
+      add(h.a.puuid, { key: "inform", label: "In Form", tone: "flex", priority: 83, cluster: AX.winrate, lead, meaning: "Hottest recent form — best win rate over the last 15 games.", detail: `${pctStr(h.wr)} over last ${h.n}` });
     }
   }
 
   // ---- Farm / gold ----
   // Farm King needs genuinely strong CS; Minion Hater needs genuinely weak CS. (Supports
   // farm little by design, so this still mostly lands on non-supports — see note below.)
-  rel("max", (a) => a.avgCspm, { key: "farm", label: "Farm King", tone: "flex", priority: 54, meaning: "Highest CS per minute — never misses a minion.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.avgCspm >= FLOOR.goodCspm });
-  rel("min", (a) => a.avgCspm, { key: "minionhater", label: "Minion Hater", tone: "shame", priority: 50, meaning: "Lowest CS per minute — farming is beneath them.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.avgCspm < FLOOR.lowCspm });
-  rel("max", (a) => a.avgGold, { key: "rich", label: "Gold Digger", tone: "neutral", priority: 44, meaning: "Earns the most gold per game.", detail: (a) => `${num(a.avgGold)} gold/game` });
-  rel("min", (a) => a.avgGold, { key: "broke", label: "Broke", tone: "shame", priority: 42, meaning: "Earns the least gold — perpetually behind.", detail: (a) => `${num(a.avgGold)} gold/game` });
+  rel("max", (a) => a.avgCspm, { key: "farm", label: "Farm King", tone: "flex", priority: 54, cluster: AX.econ, meaning: "Highest CS per minute — never misses a minion.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.avgCspm >= FLOOR.goodCspm });
+  rel("min", (a) => a.avgCspm, { key: "minionhater", label: "Minion Hater", tone: "shame", priority: 50, cluster: AX.econ, meaning: "Lowest CS per minute — farming is beneath them.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.avgCspm < FLOOR.lowCspm });
+  rel("max", (a) => a.avgGold, { key: "rich", label: "Gold Digger", tone: "neutral", priority: 44, cluster: AX.econ, meaning: "Earns the most gold per game.", detail: (a) => `${num(a.avgGold)} gold/game` });
+  rel("min", (a) => a.avgGold, { key: "broke", label: "Broke", tone: "shame", priority: 42, cluster: AX.econ, meaning: "Earns the least gold — perpetually behind.", detail: (a) => `${num(a.avgGold)} gold/game` });
 
   // ---- Vision / utility ----
   // Vision is role-skewed (supports run far higher), so these floors keep Wardless off
   // someone with decent vision and Warden off a stack where nobody really wards.
-  rel("min", (a) => a.avgVision, { key: "wardless", label: "Wardless", tone: "shame", priority: 70, meaning: "Lowest vision score — wards are someone else's problem.", detail: (a) => `${a.avgVision.toFixed(0)} vision avg` }, { gate: (a) => a.avgVision < FLOOR.lowVision });
-  rel("max", (a) => a.avgVision, { key: "warden", label: "Warden", tone: "flex", priority: 49, meaning: "Highest vision score — actually buys control wards.", detail: (a) => `${a.avgVision.toFixed(0)} vision avg` }, { gate: (a) => a.avgVision >= FLOOR.goodVision });
-  rel("max", (a) => a.avgAssists, { key: "teamplayer", label: "Team Player", tone: "flex", priority: 46, meaning: "Most assists per game — always in the fight for the team.", detail: (a) => `${a.avgAssists.toFixed(1)} assists/game` }, { gate: (a) => a.avgAssists >= FLOOR.manyAssists });
-  rel("min", (a) => a.avgAssists, { key: "lonewolf", label: "Lone Wolf", tone: "neutral", priority: 45, meaning: "Fewest assists — does its own thing.", detail: (a) => `${a.avgAssists.toFixed(1)} assists/game` });
-  rel("max", (a) => a.avgCc, { key: "ccbot", label: "CC Machine", tone: "flex", priority: 47, meaning: "Locks enemies down the most (crowd-control time).", detail: (a) => `${a.avgCc.toFixed(0)}s CC/game` }, { gate: (a) =>a.avgCc > 0 });
-  rel("max", (a) => a.healShield, { key: "medic", label: "Pocket Medic", tone: "flex", priority: 51, meaning: "Most healing + shielding poured into teammates.", detail: (a) => `${num(a.healShield)} healed/shielded` }, { gate: (a) =>a.healShield > 0 });
+  rel("min", (a) => a.avgVision, { key: "wardless", label: "Wardless", tone: "shame", priority: 70, cluster: AX.utility, meaning: "Lowest vision score — wards are someone else's problem.", detail: (a) => `${a.avgVision.toFixed(0)} vision avg` }, { gate: (a) => a.avgVision < FLOOR.lowVision });
+  rel("max", (a) => a.avgVision, { key: "warden", label: "Warden", tone: "flex", priority: 49, cluster: AX.utility, meaning: "Highest vision score — actually buys control wards.", detail: (a) => `${a.avgVision.toFixed(0)} vision avg` }, { gate: (a) => a.avgVision >= FLOOR.goodVision });
+  rel("max", (a) => a.avgAssists, { key: "teamplayer", label: "Team Player", tone: "flex", priority: 46, cluster: AX.utility, meaning: "Most assists per game — always in the fight for the team.", detail: (a) => `${a.avgAssists.toFixed(1)} assists/game` }, { gate: (a) => a.avgAssists >= FLOOR.manyAssists });
+  rel("min", (a) => a.avgAssists, { key: "lonewolf", label: "Lone Wolf", tone: "neutral", priority: 45, cluster: AX.utility, meaning: "Fewest assists — does its own thing.", detail: (a) => `${a.avgAssists.toFixed(1)} assists/game` });
+  rel("max", (a) => a.avgCc, { key: "ccbot", label: "CC Machine", tone: "flex", priority: 47, cluster: AX.utility, meaning: "Locks enemies down the most (crowd-control time).", detail: (a) => `${a.avgCc.toFixed(0)}s CC/game` }, { gate: (a) =>a.avgCc > 0 });
+  rel("max", (a) => a.healShield, { key: "medic", label: "Pocket Medic", tone: "flex", priority: 51, cluster: AX.utility, meaning: "Most healing + shielding poured into teammates.", detail: (a) => `${num(a.healShield)} healed/shielded` }, { gate: (a) =>a.healShield > 0 });
 
   // ---- KDA ----
   // KDA Player only if the best KDA is genuinely strong; Liability only if the worst is
   // actually poor — a 2.1+ KDA is respectable and shouldn't be branded a liability.
-  rel("max", kda, { key: "kdaplayer", label: "KDA Player", tone: "neutral", priority: 55, meaning: "Best overall KDA — may or may not ever press a button.", detail: (a) => `${kda(a).toFixed(1)} KDA` }, { gate: (a) => kda(a) >= FLOOR.goodKda });
-  rel("min", kda, { key: "liability", label: "The Liability", tone: "shame", priority: 78, meaning: "Worst KDA in the stack.", detail: (a) => `${kda(a).toFixed(1)} KDA` }, { gate: (a) => kda(a) < FLOOR.badKda });
+  rel("max", kda, { key: "kdaplayer", label: "KDA Player", tone: "neutral", priority: 55, cluster: AX.combat, meaning: "Best overall KDA — may or may not ever press a button.", detail: (a) => `${kda(a).toFixed(1)} KDA` }, { gate: (a) => kda(a) >= FLOOR.goodKda });
+  rel("min", kda, { key: "liability", label: "The Liability", tone: "shame", priority: 78, cluster: AX.combat, meaning: "Worst KDA in the stack.", detail: (a) => `${kda(a).toFixed(1)} KDA` }, { gate: (a) => kda(a) < FLOOR.badKda });
 
   // ---- Activity / misc ----
-  rel("max", (a) => a.games, { key: "nolife", label: "No-Life", tone: "neutral", priority: 62, meaning: "Most games tracked — touch grass.", detail: (a) => `${a.games} games` });
-  rel("min", (a) => a.games, { key: "casual", label: "Casual", tone: "neutral", priority: 40, meaning: "Plays the least — a part-timer.", detail: (a) => `${a.games} games` });
-  rel("max", (a) => a.nightShare, { key: "nightowl", label: "Night Owl", tone: "shame", priority: 67, meaning: "Plays the most games after midnight. Sleep is a myth.", detail: (a) => `${pctStr(a.nightShare)} after midnight` }, { gate: (a) =>a.nightShare >= 0.25 });
-  rel("max", (a) => a.solos, { key: "solokiller", label: "Solo Killer", tone: "flex", priority: 52, meaning: "Most solo kills in the group — no help needed.", detail: (a) => `${a.solos} solo kills` }, { gate: (a) =>a.solos > 0 });
-  rel("max", (a) => a.steals, { key: "thief", label: "Objective Thief", tone: "flex", priority: 65, meaning: "Stole the most Barons/Dragons. Smite diff.", detail: (a) => `${a.steals} steals` }, { gate: (a) =>a.steals > 0 });
-  rel("max", (a) => a.maxSpree, { key: "spree", label: "Spree King", tone: "flex", priority: 43, meaning: "Longest single killing spree without dying.", detail: (a) => `${a.maxSpree}-kill spree` }, { gate: (a) =>a.maxSpree >= 8 });
-  rel("max", (a) => a.pentas, { key: "pentaking", label: "Pentakill King", tone: "flex", priority: 69, meaning: "Most pentakills in the group. ACE!", detail: (a) => `${a.pentas} penta${a.pentas > 1 ? "s" : ""}` }, { gate: (a) => a.pentas > 0 });
+  rel("max", (a) => a.games, { key: "nolife", label: "No-Life", tone: "neutral", priority: 62, cluster: AX.activity, meaning: "Most games tracked — touch grass.", detail: (a) => `${a.games} games` });
+  rel("min", (a) => a.games, { key: "casual", label: "Casual", tone: "neutral", priority: 40, cluster: AX.activity, meaning: "Plays the least — a part-timer.", detail: (a) => `${a.games} games` });
+  rel("max", (a) => a.nightShare, { key: "nightowl", label: "Night Owl", tone: "shame", priority: 67, cluster: AX.activity, meaning: "Plays the most games after midnight. Sleep is a myth.", detail: (a) => `${pctStr(a.nightShare)} after midnight` }, { gate: (a) =>a.nightShare >= 0.25 });
+  // ---- Rare / meme achievements — independent (own cluster) so they don't dedup each other ----
+  rel("max", (a) => a.solos, { key: "solokiller", label: "Solo Killer", tone: "flex", priority: 52, cluster: "solokiller", meaning: "Most solo kills in the group — no help needed.", detail: (a) => `${a.solos} solo kills` }, { gate: (a) =>a.solos > 0 });
+  rel("max", (a) => a.steals, { key: "thief", label: "Objective Thief", tone: "flex", priority: 65, cluster: "thief", meaning: "Stole the most Barons/Dragons. Smite diff.", detail: (a) => `${a.steals} steals` }, { gate: (a) =>a.steals > 0 });
+  rel("max", (a) => a.maxSpree, { key: "spree", label: "Spree King", tone: "flex", priority: 43, cluster: "spree", meaning: "Longest single killing spree without dying.", detail: (a) => `${a.maxSpree}-kill spree` }, { gate: (a) =>a.maxSpree >= 8 });
+  rel("max", (a) => a.pentas, { key: "pentaking", label: "Pentakill King", tone: "flex", priority: 69, cluster: "pentaking", meaning: "Most pentakills in the group. ACE!", detail: (a) => `${a.pentas} penta${a.pentas > 1 ? "s" : ""}` }, { gate: (a) => a.pentas > 0 });
 
   // ---- Challenge-derived (migration 003) ----
-  rel("max", (a) => a.dodged, { key: "untouchable", label: "Untouchable", tone: "flex", priority: 57, meaning: "Dodges the most skillshots — slippery.", detail: (a) => `${a.dodged.toFixed(1)} dodged/game` }, { gate: (a) => a.dodged > 0 });
-  rel("min", (a) => a.dodged, { key: "hitbox", label: "Walking Hitbox", tone: "shame", priority: 71, meaning: "Dodges the fewest skillshots — walks into everything.", detail: (a) => `${a.dodged.toFixed(1)} dodged/game` }, { gate: (a) => a.dodged > 0 });
-  rel("max", (a) => a.towerKills, { key: "towerdiver", label: "Tower Diver", tone: "flex", priority: 59, meaning: "Most kills under the enemy turret — fearless (or stupid).", detail: (a) => `${a.towerKills} kills under tower` }, { gate: (a) => a.towerKills > 0 });
-  rel("max", (a) => a.fountain, { key: "fountain", label: "Fountain Diver", tone: "flex", priority: 67, meaning: "Got takedowns in the enemy fountain. Peak disrespect.", detail: (a) => `${a.fountain} fountain takedowns` }, { gate: (a) => a.fountain > 0 });
-  rel("max", (a) => a.smiteless, { key: "smiteless", label: "Smiteless Thief", tone: "flex", priority: 66, meaning: "Stole an epic monster WITHOUT smite. Filthy.", detail: (a) => `${a.smiteless} smiteless steals` }, { gate: (a) => a.smiteless > 0 });
-  rel("max", (a) => a.saves, { key: "guardian", label: "Guardian Angel", tone: "flex", priority: 53, meaning: "Saved teammates from certain death the most.", detail: (a) => `${a.saves} ally saves` }, { gate: (a) => a.saves > 0 });
+  rel("max", (a) => a.dodged, { key: "untouchable", label: "Untouchable", tone: "flex", priority: 57, cluster: AX.survival, meaning: "Dodges the most skillshots — slippery.", detail: (a) => `${a.dodged.toFixed(1)} dodged/game` }, { gate: (a) => a.dodged > 0 });
+  rel("min", (a) => a.dodged, { key: "hitbox", label: "Walking Hitbox", tone: "shame", priority: 71, cluster: AX.survival, meaning: "Dodges the fewest skillshots — walks into everything.", detail: (a) => `${a.dodged.toFixed(1)} dodged/game` }, { gate: (a) => a.dodged > 0 });
+  rel("max", (a) => a.towerKills, { key: "towerdiver", label: "Tower Diver", tone: "flex", priority: 59, cluster: "towerdiver", meaning: "Most kills under the enemy turret — fearless (or stupid).", detail: (a) => `${a.towerKills} kills under tower` }, { gate: (a) => a.towerKills > 0 });
+  rel("max", (a) => a.fountain, { key: "fountain", label: "Fountain Diver", tone: "flex", priority: 67, cluster: "fountain", meaning: "Got takedowns in the enemy fountain. Peak disrespect.", detail: (a) => `${a.fountain} fountain takedowns` }, { gate: (a) => a.fountain > 0 });
+  rel("max", (a) => a.smiteless, { key: "smiteless", label: "Smiteless Thief", tone: "flex", priority: 66, cluster: "smiteless", meaning: "Stole an epic monster WITHOUT smite. Filthy.", detail: (a) => `${a.smiteless} smiteless steals` }, { gate: (a) => a.smiteless > 0 });
+  rel("max", (a) => a.saves, { key: "guardian", label: "Guardian Angel", tone: "flex", priority: 53, cluster: AX.utility, meaning: "Saved teammates from certain death the most.", detail: (a) => `${a.saves} ally saves` }, { gate: (a) => a.saves > 0 });
 
   // ---- Identity (per-player, not relative) ----
   for (const a of aggs) {
@@ -308,16 +376,33 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
     const champs = (champByPlayer.get(a.puuid) ?? []).sort((x, y) => y.g - x.g);
     const top = champs[0];
     if (top && top.g >= 10 && top.g / a.games >= 0.4) {
-      add(a.puuid, { key: `otp:${top.name}`, label: `${top.name} OTP`, tone: "neutral", priority: 73, meaning: `One-tricks ${top.name} — plays it in a huge share of games.`, detail: `${Math.round((top.g / a.games) * 100)}% on ${top.name}` });
+      add(a.puuid, { key: `otp:${top.name}`, label: `${top.name} OTP`, tone: "neutral", priority: 73, cluster: "otp", lead: DOMINANT, meaning: `One-tricks ${top.name} — plays it in a huge share of games.`, detail: `${Math.round((top.g / a.games) * 100)}% on ${top.name}` });
     }
     const cursed = champs.filter((c) => c.g >= 12 && c.w / c.g <= 0.42).sort((x, y) => x.w / x.g - y.w / y.g)[0];
     if (cursed) {
-      add(a.puuid, { key: `cursed:${cursed.name}`, label: `Cursed: ${cursed.name}`, tone: "shame", priority: 80, meaning: `Keeps losing on ${cursed.name} but refuses to drop it.`, detail: `${Math.round((cursed.w / cursed.g) * 100)}% over ${cursed.g}g` });
+      add(a.puuid, { key: `cursed:${cursed.name}`, label: `Cursed: ${cursed.name}`, tone: "shame", priority: 80, cluster: "cursed", lead: DOMINANT, meaning: `Keeps losing on ${cursed.name} but refuses to drop it.`, detail: `${Math.round((cursed.w / cursed.g) * 100)}% over ${cursed.g}g` });
     }
   }
 
+  // Collapse correlated near-synonyms: keep only each player's highest-priority tag per
+  // axis (combat/winrate/survival/econ/utility/activity). Rare/meme + identity tags use a
+  // unique cluster, so they survive this pass and only compete on the final priority cap.
+  // This is what stops a support main racking up 6 utility tags or the best player sweeping
+  // every fighting superlative — each profile ends up with a few DISTINCT signatures.
   for (const puuid of Object.keys(out)) {
-    out[puuid] = out[puuid]!.sort((x, y) => y.priority - x.priority).slice(0, MAX_PER_PLAYER);
+    const best = new Map<string, PlayerTag>();
+    for (const t of out[puuid]!) {
+      const prev = best.get(t.cluster);
+      // Within an axis, the tag a player most genuinely earned = the one they lead the
+      // stack by the widest margin (e.g. +40% on damage beats +8% on kills → Glass Cannon).
+      // Priority only breaks ties when two facets are equally dominant.
+      if (!prev || t.lead > prev.lead || (t.lead === prev.lead && t.priority > prev.priority)) best.set(t.cluster, t);
+    }
+    // Across axes, the final cut keeps the most NOTABLE signatures (priority) rather than
+    // the most statistically dominant — a tight Glass Cannon is more fun to show than a
+    // runaway "fewest games". Flip this to compare on `lead` if you'd rather it be purely
+    // distance-driven.
+    out[puuid] = [...best.values()].sort((x, y) => y.priority - x.priority).slice(0, CAP_PER_PLAYER);
   }
   return out;
 }
