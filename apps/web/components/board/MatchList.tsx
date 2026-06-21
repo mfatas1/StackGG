@@ -12,7 +12,8 @@ import { mvpOf } from "@/lib/carry";
 
 const kdaRatio = (k: number, d: number, a: number) => (d === 0 ? Infinity : (k + a) / d);
 const kdaText = (k: number, d: number, a: number) => (d === 0 ? "Perfect" : ((k + a) / d).toFixed(2));
-const kdaTone = (r: number) => (r >= 4 ? "text-gold" : r >= 2.5 ? "text-win" : r >= 1.5 ? "text-ink" : "text-loss");
+// Top tier is blue (primary); gold stays reserved for the MVP crown only.
+const kdaTone = (r: number) => (r >= 4 ? "text-elite" : r >= 2.5 ? "text-win" : r >= 1.5 ? "text-ink" : "text-loss");
 const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`);
 const QUEUE_NAME: Record<string, string> = { ranked: "Ranked Solo", flex: "Ranked Flex", aram: "ARAM", arena: "Arena", all: "Game" };
 

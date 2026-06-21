@@ -8,8 +8,9 @@ import { SampleSize } from "../kit/Badge";
 import { pct, placementSuffix } from "@/lib/format";
 import { filterHref } from "@/lib/filters";
 
-// Champion winrate colour: gold above 60%, green 50–60%, red below.
-const champTone = (wr: number) => (wr > 0.6 ? "text-gold" : wr >= 0.5 ? "text-win" : "text-loss");
+// Champion winrate colour: blue (top tier) above 60%, green 50–60%, red below. Gold is
+// reserved for MVP only, so it doesn't read as a middle yellow between red and green.
+const champTone = (wr: number) => (wr > 0.6 ? "text-elite" : wr >= 0.5 ? "text-win" : "text-loss");
 
 /**
  * Mode summary. The two ranked queues (solo + flex) are the primary pair — equal height,

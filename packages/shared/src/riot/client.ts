@@ -206,6 +206,50 @@ export class RiotClient {
     const json = await this.request(route, `/lol/match/v5/matches/${encodeURIComponent(matchId)}`);
     return MatchDtoSchema.parse(json);
   }
+
+  /**
+   * Match timeline (per-frame events). NOT used in ingestion — fetched only on demand when
+   * a user opens the in-depth game view, and never stored (see CLAUDE.md rule #4: timelines
+   * stay out of the bulk pipeline; this scoped, human-triggered call is the exception). The
+   * payload is large and not zod-validated; callers narrow the few fields they need.
+   */
+  async getMatchTimeline(matchId: string, platform: string): Promise<MatchTimelineDto> {
+    const route = regionalRouteFor(platform);
+    const json = await this.request(route, `/lol/match/v5/matches/${encodeURIComponent(matchId)}/timeline`);
+    return json as MatchTimelineDto;
+  }
+}
+
+export interface TimelineEvent {
+  type: string;
+  timestamp?: number;
+  killerId?: number;
+  killerTeamId?: number;
+  victimId?: number;
+  monsterType?: string;
+  monsterSubType?: string;
+  buildingType?: string;
+  killType?: string;
+  teamId?: number;
+  participantId?: number;
+  itemId?: number;
+  beforeId?: number;
+  afterId?: number;
+}
+export interface TimelineParticipantFrame {
+  totalGold?: number;
+  xp?: number;
+}
+export interface TimelineFrame {
+  timestamp?: number;
+  events?: TimelineEvent[];
+  participantFrames?: Record<string, TimelineParticipantFrame>;
+}
+export interface MatchTimelineDto {
+  info?: {
+    frames?: TimelineFrame[];
+    participants?: { participantId: number; puuid: string }[];
+  };
 }
 
 let shared: RiotClient | null = null;

@@ -31,6 +31,7 @@
     --gold-light: 0.92 0.04 225;
     --gold-dark: 0.5 0.06 230;
     --info: 0.66 0.1 220;
+    --elite: 0.8 0.17 252; /* top-tier stat highlight — bright, vivid blue (inherited by all dark themes) */
   }
 
   /* ---- Arcane — violet on indigo ---- */
@@ -142,6 +143,7 @@
     --gold-light: 0.72 0.1 80;
     --gold-dark: 0.5 0.1 75;
     --info: 0.5 0.12 235;
+    --elite: 0.5 0.17 252; /* darker for the light (parchment) theme */
   }
 
   html {
