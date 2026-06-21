@@ -61,6 +61,11 @@ const AX = {
   econ: "econ", // CS / gold
   utility: "utility", // vision / assists / heal-shield / CC / saves — the support axis
   activity: "activity", // games played / play hours
+  // ---- "Fun" personality axes — playstyle identity, decoupled from win/loss, so even a
+  // weaker player who plays for fun gets something to show off, not just shame tags. ----
+  champpool: "champpool", // how many champs you spread across (one-trick ↔ variety)
+  gamelength: "gamelength", // your games run long ↔ short
+  consistency: "consistency", // boom-or-bust ↔ same stat line every game
 } as const;
 
 interface Agg {
@@ -90,6 +95,8 @@ interface Agg {
   smiteless: number;
   saves: number;
   nightShare: number;
+  avgDur: number; // average game length (seconds)
+  kdaSd: number; // game-to-game std-dev of KDA — consistency vs boom-or-bust
 }
 
 const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
@@ -112,7 +119,9 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
        avg(mp.team_damage_pct) AS team_dmg_pct, avg(mp.skillshots_dodged) AS dodged,
        sum(mp.kills_near_enemy_turret) AS tower_kills, sum(mp.fountain_takedowns) AS fountain,
        sum(mp.smiteless_steals) AS smiteless, sum(mp.ally_saves) AS saves,
-       avg(CASE WHEN extract(hour FROM m.game_start AT TIME ZONE 'Europe/Paris') < 5 THEN 1 ELSE 0 END) AS night_share
+       avg(CASE WHEN extract(hour FROM m.game_start AT TIME ZONE 'Europe/Paris') < 5 THEN 1 ELSE 0 END) AS night_share,
+       avg(m.game_duration) AS avg_dur,
+       stddev_samp((mp.kills + mp.assists)::float / GREATEST(mp.deaths, 1)) AS kda_sd
      FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id AND m.game_duration >= 300
      WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR}
      GROUP BY mp.puuid`,
@@ -147,6 +156,8 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
     smiteless: Number(r.smiteless) || 0,
     saves: Number(r.saves) || 0,
     nightShare: Number(r.night_share) || 0,
+    avgDur: Number(r.avg_dur) || 0,
+    kdaSd: Number(r.kda_sd) || 0,
   }));
 
   // Longest win & loss streaks per player (for Heater / Tilted).
@@ -356,6 +367,22 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   rel("max", (a) => a.games, { key: "nolife", label: "No-Life", tone: "neutral", priority: 62, cluster: AX.activity, meaning: "Most games tracked — touch grass.", detail: (a) => `${a.games} games` });
   rel("min", (a) => a.games, { key: "casual", label: "Casual", tone: "neutral", priority: 40, cluster: AX.activity, meaning: "Plays the least — a part-timer.", detail: (a) => `${a.games} games` });
   rel("max", (a) => a.nightShare, { key: "nightowl", label: "Night Owl", tone: "shame", priority: 67, cluster: AX.activity, meaning: "Plays the most games after midnight. Sleep is a myth.", detail: (a) => `${pctStr(a.nightShare)} after midnight` }, { gate: (a) =>a.nightShare >= 0.25 });
+
+  // ---- "Fun" personality tags (neutral) — about HOW you play, not how well. ----
+  // Champion habits: widest pool vs a tiny comfort rotation. (A literal one-trick gets the
+  // OTP identity tag instead; Comfort Picks is for a small handful, not a single champ.)
+  const poolSize = (a: Agg) => champByPlayer.get(a.puuid)?.length ?? 0;
+  rel("max", poolSize, { key: "variety", label: "Commitment Issues", tone: "neutral", priority: 61, cluster: AX.champpool, meaning: "Plays a different champion almost every game — no loyalty.", detail: (a) => `${poolSize(a)} champions` }, { gate: (a) => poolSize(a) >= 8 });
+  rel("min", poolSize, { key: "comfort", label: "Comfort Picks", tone: "neutral", priority: 60, cluster: AX.champpool, meaning: "Sticks to a tiny rotation of comfort champs.", detail: (a) => `${poolSize(a)} champions` }, { gate: (a) => poolSize(a) >= 2 && poolSize(a) <= 6 });
+
+  // Game flow: do your games drag on or end fast? (avgDur is seconds.)
+  rel("max", (a) => a.avgDur, { key: "marathon", label: "Full 40", tone: "neutral", priority: 58, cluster: AX.gamelength, meaning: "Their games drag on — longest average game length in the stack.", detail: (a) => `${Math.round(a.avgDur / 60)} min avg` });
+  rel("min", (a) => a.avgDur, { key: "speedrun", label: "Speedrunner", tone: "neutral", priority: 57, cluster: AX.gamelength, meaning: "In and out — shortest average games in the stack.", detail: (a) => `${Math.round(a.avgDur / 60)} min avg` });
+
+  // Consistency: same stat line every game vs boom-or-bust (std-dev of per-game KDA).
+  rel("max", (a) => a.kdaSd, { key: "wildcard", label: "Wildcard", tone: "neutral", priority: 60, cluster: AX.consistency, meaning: "Boom or bust — the biggest game-to-game swings in the stack.", detail: (a) => `±${a.kdaSd.toFixed(1)} KDA swing` }, { gate: (a) => a.kdaSd > 0 });
+  rel("min", (a) => a.kdaSd, { key: "reliable", label: "Mr. Reliable", tone: "neutral", priority: 59, cluster: AX.consistency, meaning: "Same stat line every game — utterly predictable, in a good way.", detail: (a) => `±${a.kdaSd.toFixed(1)} KDA swing` }, { gate: (a) => a.kdaSd > 0 });
+
   // ---- Rare / meme achievements — independent (own cluster) so they don't dedup each other ----
   rel("max", (a) => a.solos, { key: "solokiller", label: "Solo Killer", tone: "flex", priority: 52, cluster: "solokiller", meaning: "Most solo kills in the group — no help needed.", detail: (a) => `${a.solos} solo kills` }, { gate: (a) =>a.solos > 0 });
   rel("max", (a) => a.steals, { key: "thief", label: "Objective Thief", tone: "flex", priority: 65, cluster: "thief", meaning: "Stole the most Barons/Dragons. Smite diff.", detail: (a) => `${a.steals} steals` }, { gate: (a) =>a.steals > 0 });
