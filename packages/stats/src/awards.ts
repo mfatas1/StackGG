@@ -88,6 +88,7 @@ export async function getCrewRoleMatrix(client: Queryable, puuids: string[]): Pr
 interface TopRow {
   puuid: string;
   v: number;
+  match_id: string;
   champion_name: string;
   queue_id: number;
   kills: number;
@@ -113,7 +114,7 @@ async function topGames(
   return query<TopRow>(
     `SELECT * FROM (
        SELECT DISTINCT ON (mp.puuid)
-         mp.puuid, (${metricSql})::float AS v, mp.champion_name, m.queue_id,
+         mp.puuid, mp.match_id, (${metricSql})::float AS v, mp.champion_name, m.queue_id,
          mp.kills, mp.deaths, mp.assists, mp.gold, mp.cs, mp.vision_score
        FROM match_participants mp
        JOIN matches m ON m.match_id = mp.match_id
@@ -156,11 +157,17 @@ export async function getCrewAwards(client: Queryable, puuids: string[]): Promis
       if (!f) continue;
       const holder = await ident(r.puuid);
       if (!holder) continue;
-      entries.push({ rank: entries.length + 1, holder, value: f.value, sub: f.sub });
+      // Per-game / per-minute rows (TopRow) carry the source match, so the row can open the
+      // full scoreboard. All-time aggregates (career sums, streaks) don't — they span games.
+      const g = r as { match_id?: string; queue_id?: number };
+      const game = g.match_id
+        ? { matchId: g.match_id, queueSlug: g.queue_id === QUEUES.RANKED_FLEX ? "flex" : "ranked" }
+        : {};
+      entries.push({ rank: entries.length + 1, holder, value: f.value, sub: f.sub, ...game });
     }
     if (!entries.length) return;
     const top = entries[0]!;
-    awards.push({ key, label, value: top.value, holder: top.holder, sub: top.sub, ranking: entries, category });
+    awards.push({ key, label, value: top.value, holder: top.holder, sub: top.sub, matchId: top.matchId, queueSlug: top.queueSlug, ranking: entries, category });
   };
 
   const kda = (r: TopRow) => `${r.kills}/${r.deaths}/${r.assists}`;

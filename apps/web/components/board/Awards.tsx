@@ -5,20 +5,48 @@ import type { Award, RolePlacement } from "@crewstats/shared";
 import { ProfileIcon, RoleIcon } from "../kit/Avatar";
 import { Empty } from "../kit/Frame";
 import { PlayerLink } from "../kit/links";
+import { MatchScoreboard } from "./MatchScoreboard";
 import { pct } from "@/lib/format";
+
+/**
+ * The grey context line under a record ("Draven · 21/4/8 · Ranked Flex"). For per-game
+ * records it's a button that toggles the full game scoreboard; for all-time aggregates
+ * (no single source game) it's plain text.
+ */
+function SubLine({ sub, matchId, open, onToggle }: { sub: string; matchId?: string; open: boolean; onToggle: () => void }) {
+  if (!matchId) return <div className="truncate text-2xs text-ink-faint">{sub}</div>;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`group flex max-w-full items-center gap-1 text-2xs ${open ? "text-primary" : "text-ink-faint hover:text-primary"}`}
+      aria-expanded={open}
+      title="Open this game"
+    >
+      <span className="truncate underline decoration-dotted decoration-line/70 underline-offset-2 group-hover:decoration-primary/60">{sub}</span>
+      <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+    </button>
+  );
+}
+
+/** The expanded full-lobby scoreboard for the game a record happened in. */
+function GamePanel({ matchId, queueSlug, puuid }: { matchId: string; queueSlug?: string; puuid: string }) {
+  return (
+    <div className="border-t border-line/40 px-3 py-3">
+      <MatchScoreboard matchId={matchId} queueSlug={queueSlug ?? "ranked"} me={puuid} highlight={[puuid]} />
+    </div>
+  );
+}
 
 function AwardRow({ a, crewSlug, defaultOpen, className = "" }: { a: Award; crewSlug: string; defaultOpen?: boolean; className?: string }) {
   const rest = a.ranking.slice(1, 5); // display ranks 2–5 only (full ranking still drives the average)
   const canExpand = rest.length > 0;
   const [open, setOpen] = useState(!!defaultOpen && canExpand);
+  const [game, setGame] = useState<string | null>(null); // matchId whose scoreboard is open (one at a time)
+  const toggleGame = (id?: string) => id && setGame((g) => (g === id ? null : id));
   return (
     <li className={`notch notch-sm border border-line/60 bg-surface-2/40 ${className}`}>
-      <button
-        type="button"
-        onClick={() => canExpand && setOpen((o) => !o)}
-        className={`flex w-full items-center gap-3 p-3 text-left ${canExpand ? "cursor-pointer hover:bg-surface-2/70" : "cursor-default"}`}
-        aria-expanded={open}
-      >
+      <div className="flex w-full items-center gap-3 p-3">
         <span className="notch notch-sm grid h-9 w-9 shrink-0 place-items-center bg-gold/15 text-gold">
           <Trophy className="h-4 w-4" />
         </span>
@@ -28,24 +56,36 @@ function AwardRow({ a, crewSlug, defaultOpen, className = "" }: { a: Award; crew
             <ProfileIcon id={a.holder.profileIcon} name={a.holder.riotId} size={18} />
             <PlayerLink riotId={a.holder.riotId} tag={a.holder.tag} region={a.holder.region} crewSlug={crewSlug} className="truncate text-sm font-semibold" />
           </div>
-          <div className="truncate text-2xs text-ink-faint">{a.sub}</div>
+          <SubLine sub={a.sub} matchId={a.matchId} open={game === a.matchId} onToggle={() => toggleGame(a.matchId)} />
         </div>
         <span className="shrink-0 font-display text-2xl font-bold tnum text-gold">{a.value}</span>
         {canExpand && (
-          <ChevronDown className={`h-4 w-4 shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`} />
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="shrink-0 rounded p-1 text-ink-faint transition-colors hover:text-ink"
+            aria-expanded={open}
+            aria-label="Show top 5"
+          >
+            <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+          </button>
         )}
-      </button>
+      </div>
+      {a.matchId && game === a.matchId && <GamePanel matchId={a.matchId} queueSlug={a.queueSlug} puuid={a.holder.puuid} />}
       {open && canExpand && (
         <ol className="space-y-0.5 border-t border-line/50 px-3 py-2">
           {rest.map((e) => (
-            <li key={e.rank} className="flex items-center gap-2.5 py-1.5">
-              <span className="w-4 shrink-0 text-center font-mono text-xs text-ink-faint tnum">{e.rank}</span>
-              <ProfileIcon id={e.holder.profileIcon} name={e.holder.riotId} size={16} />
-              <div className="min-w-0 flex-1">
-                <PlayerLink riotId={e.holder.riotId} tag={e.holder.tag} region={e.holder.region} crewSlug={crewSlug} className="truncate text-xs font-medium" />
-                <div className="truncate text-2xs text-ink-faint">{e.sub}</div>
+            <li key={e.rank}>
+              <div className="flex items-center gap-2.5 py-1.5">
+                <span className="w-4 shrink-0 text-center font-mono text-xs text-ink-faint tnum">{e.rank}</span>
+                <ProfileIcon id={e.holder.profileIcon} name={e.holder.riotId} size={16} />
+                <div className="min-w-0 flex-1">
+                  <PlayerLink riotId={e.holder.riotId} tag={e.holder.tag} region={e.holder.region} crewSlug={crewSlug} className="truncate text-xs font-medium" />
+                  <SubLine sub={e.sub} matchId={e.matchId} open={game === e.matchId} onToggle={() => toggleGame(e.matchId)} />
+                </div>
+                <span className="shrink-0 font-mono text-sm font-semibold tnum text-ink-dim">{e.value}</span>
               </div>
-              <span className="shrink-0 font-mono text-sm font-semibold tnum text-ink-dim">{e.value}</span>
+              {e.matchId && game === e.matchId && <GamePanel matchId={e.matchId} queueSlug={e.queueSlug} puuid={e.holder.puuid} />}
             </li>
           ))}
         </ol>
