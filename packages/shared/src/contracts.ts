@@ -193,6 +193,10 @@ export const AwardEntrySchema = z.object({
   holder: PlayerIdentitySchema,
   value: z.string(), // "21"
   sub: z.string(), // "Draven · 21/4/8 · Ranked Flex"
+  // The specific game this record happened in, so the row can open the full scoreboard.
+  // Present only for per-game / per-minute records; absent for all-time aggregates.
+  matchId: z.string().optional(),
+  queueSlug: z.string().optional(), // "ranked" | "flex" — drives the scoreboard layout
 });
 export type AwardEntry = z.infer<typeof AwardEntrySchema>;
 
@@ -206,6 +210,8 @@ export const AwardSchema = z.object({
   value: z.string(), // "21"
   holder: PlayerIdentitySchema,
   sub: z.string(), // "Draven · 21/4/8 · Ranked Flex"
+  matchId: z.string().optional(), // the #1 holder's game (mirrors ranking[0]); opens the scoreboard
+  queueSlug: z.string().optional(),
   ranking: z.array(AwardEntrySchema).default([]), // top 5, incl. the holder at rank 1
   category: AwardCategorySchema.default("pergame"),
 });
