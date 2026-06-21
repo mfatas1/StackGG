@@ -9,6 +9,11 @@ export function champIcon(championName: string): string {
   return `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${name}.png`;
 }
 
+/** Item icon (Data Dragon). */
+export function itemIcon(id: number): string {
+  return `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/item/${id}.png`;
+}
+
 /** Wide champion splash art (1215x717) — no version in the path. */
 export function champSplash(championName: string): string {
   const name = CHAMP_FIXUPS[championName] ?? championName;

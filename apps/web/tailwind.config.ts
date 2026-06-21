@@ -47,6 +47,7 @@ const config: Config = {
         win: c("--win"),
         loss: c("--loss"),
         info: c("--info"),
+        elite: c("--elite"), // "top tier" stat highlight — a bright blue, distinct from win/green
       },
       fontFamily: {
         display: ["var(--font-display)", "Georgia", "serif"],

@@ -1,10 +1,25 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Crown } from "lucide-react";
+import Link from "next/link";
+import { Crown, ArrowUpRight } from "lucide-react";
 import { ChampIcon } from "../kit/Avatar";
 import { PlayerLink } from "../kit/links";
 import { placementSuffix } from "@/lib/format";
 import { mvpOf, type CarryStats } from "@/lib/carry";
+
+/** Link to the standalone in-depth game page — shown under every inline scoreboard. */
+function FullGameLink({ matchId }: { matchId: string }) {
+  return (
+    <div className="mt-2 flex justify-end">
+      <Link
+        href={`/match/${encodeURIComponent(matchId)}`}
+        className="inline-flex items-center gap-1 text-2xs font-medium text-ink-faint transition-colors hover:text-primary"
+      >
+        View full game <ArrowUpRight className="h-3 w-3" />
+      </Link>
+    </div>
+  );
+}
 
 interface ScorePlayer extends CarryStats {
   puuid: string;
@@ -99,21 +114,24 @@ export function MatchScoreboard({
       return pa - pb;
     });
     return (
-      <div className="grid gap-2 sm:grid-cols-2">
-        {subteams.map((st) => {
-          const team = data.players.filter((p) => p.subteamId === st);
-          const place = team[0]?.placement ?? null;
-          return (
-            <div key={st ?? "?"} className="notch notch-sm border border-line/50 p-2">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint">
-                {place != null ? placementSuffix(place) : "—"}
+      <div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {subteams.map((st) => {
+            const team = data.players.filter((p) => p.subteamId === st);
+            const place = team[0]?.placement ?? null;
+            return (
+              <div key={st ?? "?"} className="notch notch-sm border border-line/50 p-2">
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint">
+                  {place != null ? placementSuffix(place) : "—"}
+                </div>
+                {team.map((p) => (
+                  <Row key={p.puuid} p={p} maxDmg={maxDmg} premade={hi.has(p.puuid)} isMe={p.puuid === me} mvp={false} region={data.region} />
+                ))}
               </div>
-              {team.map((p) => (
-                <Row key={p.puuid} p={p} maxDmg={maxDmg} premade={hi.has(p.puuid)} isMe={p.puuid === me} mvp={false} region={data.region} />
-              ))}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+        <FullGameLink matchId={matchId} />
       </div>
     );
   }
@@ -125,20 +143,23 @@ export function MatchScoreboard({
   });
 
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {teams.map((t) => (
-        <div key={t.tid} className="notch notch-sm border border-line/50 p-2">
-          <div className={`mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.12em] ${t.win ? "text-win" : "text-loss"}`}>
-            <span>{t.tid === 100 ? "Blue team" : "Red team"}</span>
-            <span>{t.win ? "Victory" : "Defeat"}</span>
+    <div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {teams.map((t) => (
+          <div key={t.tid} className="notch notch-sm border border-line/50 p-2">
+            <div className={`mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.12em] ${t.win ? "text-win" : "text-loss"}`}>
+              <span>{t.tid === 100 ? "Blue team" : "Red team"}</span>
+              <span>{t.win ? "Victory" : "Defeat"}</span>
+            </div>
+            <div className="space-y-0.5">
+              {t.roster.map((p) => (
+                <Row key={p.puuid} p={p} maxDmg={maxDmg} premade={hi.has(p.puuid)} isMe={p.puuid === me} mvp={p.puuid === t.mvpPuuid} region={data.region} />
+              ))}
+            </div>
           </div>
-          <div className="space-y-0.5">
-            {t.roster.map((p) => (
-              <Row key={p.puuid} p={p} maxDmg={maxDmg} premade={hi.has(p.puuid)} isMe={p.puuid === me} mvp={p.puuid === t.mvpPuuid} region={data.region} />
-            ))}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      <FullGameLink matchId={matchId} />
     </div>
   );
 }
