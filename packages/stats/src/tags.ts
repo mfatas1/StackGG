@@ -36,7 +36,7 @@ const SR = `(${QUEUES.RANKED_SOLO}, ${QUEUES.RANKED_FLEX})`;
 const MIN_GAMES = 10;
 // After axis-dedup, show at most this many tags per player — a tight, curated set beats a
 // wall of correlated superlatives. With dedup, 3 distinct tags is plenty.
-const CAP_PER_PLAYER = 3;
+const CAP_PER_PLAYER = 5;
 // A relative superlative is only awarded if the holder clearly separates from the
 // runner-up (leads #2 by this fraction). Stops noise tags in tight crews where someone
 // edges the field by a rounding error.
