@@ -35,19 +35,22 @@ export interface CarryStats {
 
 const n = (v: number | undefined) => v ?? 0;
 
-// Weights — positives sum ≈ 0.92, with a death penalty on top. Damage share and kill
-// participation lead; frontline (tank) and enabling (support) carry real weight so
-// non-fed roles aren't invisible; economy/vision are minor tiebreakers.
+// Weights — positives sum ≈ 0.87, with a death penalty on top. Damage share and kill
+// participation must DOMINATE (0.36 + 0.24 = 0.60): a player with way more damage, equal
+// KDA and equal deaths should win. The role bonuses (tank/support/cc/vision) are deliberately
+// small tiebreakers — they only let a tank/support EDGE OUT a mediocre carry, never overturn
+// a dominant one. They used to sum to 0.27 (vs damage's 0.32), so an engage support that
+// swept every role category could steal MVP from the actual carry; now they sum to 0.17.
 const W = {
-  killParticipation: 0.22,
-  damageShare: 0.32,
-  clutch: 0.1, // sprees, multikills, solo kills, objective steals
-  tank: 0.1, // damage taken + self-mitigated
-  support: 0.1, // heals + shields + ally saves
-  cc: 0.04,
-  vision: 0.03,
+  killParticipation: 0.24,
+  damageShare: 0.36,
+  clutch: 0.08, // sprees, multikills, solo kills, objective steals
+  tank: 0.06, // damage taken + self-mitigated
+  support: 0.06, // heals + shields + ally saves
+  cc: 0.03,
+  vision: 0.02,
   gold: 0.02,
-  deathPenalty: 0.18,
+  deathPenalty: 0.2,
 };
 
 /** Score every player in a roster, normalized within that roster. Higher = carried harder. */
