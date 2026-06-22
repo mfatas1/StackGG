@@ -1,4 +1,4 @@
-import { Crown, Coins, Flame, Eye, Castle, Users2 } from "lucide-react";
+import { Crown, Coins, Flame, Eye, Castle, Users2, ChevronDown } from "lucide-react";
 import { QUEUE_LABEL, QUEUES } from "@crewstats/shared";
 import type { MatchDetailData, MatchPlayer, TeamSummary, MatchTimeline, GoldFrame, TeamObjectives } from "@/lib/match";
 import { ChampIcon, RoleIcon } from "../kit/Avatar";
@@ -37,10 +37,15 @@ export function MatchDetail({
   const meSet = new Set(me);
   const stackSet = new Set(stack);
   const signedIn = stackSet.size > 0; // we know who the viewer is (and which players are theirs)
+  // Remap each lobby player's (possibly old-key) puuid to the current one via the live
+  // timeline's slot map, so "in your stack" resolves on older games (e.g. from records) too.
+  const slot = timeline?.puuidBySlot ?? {};
   // When signed in, only the viewer's own accounts / stackmates are flagged. When not, fall
   // back to the generic "tracked" tint so known players still stand out for anonymous visitors.
-  const relationOf = (puuid: string): Relation =>
-    meSet.has(puuid) ? "you" : stackSet.has(puuid) ? "stack" : !signedIn && trackedSet.has(puuid) ? "tracked" : "none";
+  const relationOf = (p: MatchPlayer): Relation => {
+    const puuid = slot[p.participantId] ?? p.puuid;
+    return meSet.has(puuid) ? "you" : stackSet.has(puuid) ? "stack" : !signedIn && trackedSet.has(puuid) ? "tracked" : "none";
+  };
 
   const arena = data.queueId === QUEUES.ARENA;
   const mins = data.gameDuration / 60;
@@ -180,7 +185,7 @@ function TeamBlock({
   mins: number;
   maxDmg: number;
   maxTaken: number;
-  rel: (puuid: string) => Relation;
+  rel: (p: MatchPlayer) => Relation;
   dragons?: string[];
   objectives?: TeamObjectives;
   items?: Record<number, number[]>;
@@ -231,7 +236,7 @@ function TeamBlock({
         <span className={`${COL.cs} shrink-0 text-right`}>CS</span>
         <span className={`${COL.gold} shrink-0 text-right`}>Gold</span>
         <span className={`${COL.vis} shrink-0 text-right`}>Vis</span>
-        <span className={`${COL.build} hidden shrink-0 lg:block`}>Build</span>
+        <span className="w-4 shrink-0" />
       </div>
 
       <div className="divide-y divide-line/40">
@@ -244,7 +249,7 @@ function TeamBlock({
             maxDmg={maxDmg}
             maxTaken={maxTaken}
             mvp={p.puuid === mvpPuuid}
-            relation={rel(p.puuid)}
+            relation={rel(p)}
             items={items?.[p.participantId]}
           />
         ))}
@@ -287,83 +292,129 @@ function PlayerRow({
           ? "bg-primary/[0.06]"
           : "";
   return (
-    <div className={`flex items-center gap-3 px-3 py-1.5 text-sm ${rowTone}`}>
-      {/* champ + level + role */}
-      <span className="relative shrink-0">
-        <ChampIcon name={p.championName} size={32} />
-        {p.champLevel != null && (
-          <span className="absolute -bottom-1 -left-1 grid h-4 min-w-4 place-items-center rounded-full bg-bg px-0.5 text-[9px] font-semibold text-ink-dim ring-1 ring-line tnum">
-            {p.champLevel}
-          </span>
-        )}
-        {p.role && (
-          <span className="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-bg ring-1 ring-line">
-            <RoleIcon role={p.role} size={10} />
-          </span>
-        )}
-      </span>
-
-      {/* name + champion */}
-      <div className={`${COL.name} min-w-0 shrink-0`}>
-        <div className="flex items-center gap-1.5">
-          {linkable ? (
-            <PlayerLink riotId={p.riotId} tag={p.tag} region={region} className={`min-w-0 truncate ${mine || mvp ? "font-semibold text-ink" : "font-medium"}`}>
-              {p.riotId}
-            </PlayerLink>
-          ) : (
-            <span className="min-w-0 truncate font-medium text-ink-dim">{p.riotId}</span>
-          )}
-          {relation === "you" ? (
-            <span className="shrink-0 rounded bg-primary/20 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">You</span>
-          ) : relation === "stack" ? (
-            <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary" title="In your stack">
-              <Users2 className="h-2.5 w-2.5" /> Stack
+    <details className="group">
+      {/* Click the row to reveal the full per-player breakdown below it. */}
+      <summary className={`flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-sm marker:hidden hover:bg-surface-2/50 [&::-webkit-details-marker]:hidden ${rowTone}`}>
+        {/* champ + level + role */}
+        <span className="relative shrink-0">
+          <ChampIcon name={p.championName} size={32} />
+          {p.champLevel != null && (
+            <span className="absolute -bottom-1 -left-1 grid h-4 min-w-4 place-items-center rounded-full bg-bg px-0.5 text-[9px] font-semibold text-ink-dim ring-1 ring-line tnum">
+              {p.champLevel}
             </span>
-          ) : null}
+          )}
+          {p.role && (
+            <span className="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-bg ring-1 ring-line">
+              <RoleIcon role={p.role} size={10} />
+            </span>
+          )}
+        </span>
+
+        {/* name + champion */}
+        <div className={`${COL.name} min-w-0 shrink-0`}>
+          <div className="flex items-center gap-1.5">
+            {linkable ? (
+              <PlayerLink riotId={p.riotId} tag={p.tag} region={region} className={`min-w-0 truncate ${mine || mvp ? "font-semibold text-ink" : "font-medium"}`}>
+                {p.riotId}
+              </PlayerLink>
+            ) : (
+              <span className="min-w-0 truncate font-medium text-ink-dim">{p.riotId}</span>
+            )}
+            {relation === "you" ? (
+              <span className="shrink-0 rounded bg-primary/20 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">You</span>
+            ) : relation === "stack" ? (
+              <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary" title="In your stack">
+                <Users2 className="h-2.5 w-2.5" /> Stack
+              </span>
+            ) : null}
+          </div>
+          <span className="flex items-center gap-1 truncate text-2xs text-ink-faint">
+            {p.championName}
+            {mvp && <span className="inline-flex items-center gap-0.5 text-gold"><Crown className="h-3 w-3" /> MVP</span>}
+          </span>
         </div>
-        <span className="flex items-center gap-1 truncate text-2xs text-ink-faint">
-          {p.championName}
-          {mvp && <span className="inline-flex items-center gap-0.5 text-gold"><Crown className="h-3 w-3" /> MVP</span>}
-        </span>
-      </div>
 
-      {/* KDA (deaths not coloured) */}
-      <div className={`${COL.kda} shrink-0 text-center`}>
-        <div className="font-mono text-xs tnum">
-          {p.kills} / {p.deaths} / {p.assists}
+        {/* KDA (deaths not coloured) */}
+        <div className={`${COL.kda} shrink-0 text-center`}>
+          <div className="font-mono text-xs tnum">
+            {p.kills} / {p.deaths} / {p.assists}
+          </div>
+          <div className={`font-mono text-2xs tnum ${kdaTone(ratio)}`}>{kdaText(p.kills, p.deaths, p.assists)} KDA</div>
         </div>
-        <div className={`font-mono text-2xs tnum ${kdaTone(ratio)}`}>{kdaText(p.kills, p.deaths, p.assists)} KDA</div>
-      </div>
 
-      {/* Damage dealt — bar grows to fill space, number on the right */}
-      <div className="flex flex-1 items-center gap-2" title={`${p.damage.toLocaleString()} to champions`}>
-        <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-pill bg-surface-3">
-          <span className="block h-full bg-loss/70" style={{ width: `${(p.damage / maxDmg) * 100}%` }} />
-        </span>
-        <span className="w-10 shrink-0 text-right font-mono text-2xs text-ink-dim tnum">{short(p.damage)}</span>
-      </div>
+        {/* Damage dealt — bar grows to fill space, number on the right */}
+        <div className="flex flex-1 items-center gap-2" title={`${p.damage.toLocaleString()} to champions`}>
+          <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-pill bg-surface-3">
+            <span className="block h-full bg-loss/70" style={{ width: `${(p.damage / maxDmg) * 100}%` }} />
+          </span>
+          <span className="w-10 shrink-0 text-right font-mono text-2xs text-ink-dim tnum">{short(p.damage)}</span>
+        </div>
 
-      {/* Damage taken — now with the number too */}
-      <div className="hidden flex-1 items-center gap-2 lg:flex" title={`${(p.damageTaken ?? 0).toLocaleString()} taken`}>
-        <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-pill bg-surface-3">
-          <span className="block h-full bg-ink-faint/50" style={{ width: `${((p.damageTaken ?? 0) / maxTaken) * 100}%` }} />
-        </span>
-        <span className="w-10 shrink-0 text-right font-mono text-2xs text-ink-faint tnum">{short(p.damageTaken ?? 0)}</span>
-      </div>
+        {/* Damage taken — now with the number too */}
+        <div className="hidden flex-1 items-center gap-2 lg:flex" title={`${(p.damageTaken ?? 0).toLocaleString()} taken`}>
+          <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-pill bg-surface-3">
+            <span className="block h-full bg-ink-faint/50" style={{ width: `${((p.damageTaken ?? 0) / maxTaken) * 100}%` }} />
+          </span>
+          <span className="w-10 shrink-0 text-right font-mono text-2xs text-ink-faint tnum">{short(p.damageTaken ?? 0)}</span>
+        </div>
 
-      <div className={`${COL.cs} shrink-0 text-right`}>
-        <div className="font-mono text-xs tnum">{p.cs}</div>
-        <div className="font-mono text-2xs text-ink-faint tnum">{csPerMin}/m</div>
-      </div>
-      <div className={`${COL.gold} shrink-0 text-right font-mono text-xs text-ink-dim tnum`}>{short(p.gold)}</div>
-      <div className={`${COL.vis} shrink-0 text-right font-mono text-xs text-ink-faint tnum`}>{p.visionScore}</div>
+        <div className={`${COL.cs} shrink-0 text-right`}>
+          <div className="font-mono text-xs tnum">{p.cs}</div>
+          <div className="font-mono text-2xs text-ink-faint tnum">{csPerMin}/m</div>
+        </div>
+        <div className={`${COL.gold} shrink-0 text-right font-mono text-xs text-ink-dim tnum`}>{short(p.gold)}</div>
+        <div className={`${COL.vis} shrink-0 text-right font-mono text-xs text-ink-faint tnum`}>{p.visionScore}</div>
+        <ChevronDown className="h-4 w-4 shrink-0 text-ink-faint transition-transform group-open:rotate-180" />
+      </summary>
 
-      {/* Final build */}
-      <div className={`${COL.build} hidden shrink-0 grid-cols-3 gap-0.5 lg:grid`}>
-        {(items ?? []).slice(0, 7).map((id, i) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img key={i} src={itemIcon(id)} alt="" width={16} height={16} className="rounded-sm bg-surface-3" />
+      <PlayerDetail p={p} items={items} mins={mins} />
+    </details>
+  );
+}
+
+/** The full per-player breakdown shown when a scoreboard row is expanded. */
+function PlayerDetail({ p, items, mins }: { p: MatchPlayer; items?: number[]; mins: number }) {
+  const stats: { label: string; value: string }[] = [
+    { label: "To champions", value: short(p.damage) },
+    { label: "To turrets", value: short(p.damageToTurrets) },
+    { label: "To objectives", value: short(p.damageToObjectives) },
+    { label: "Damage taken", value: short(p.damageTaken ?? 0) },
+    { label: "Self-mitigated", value: short(p.selfMitigated ?? 0) },
+    { label: "Healing (allies)", value: short(p.healTeammates ?? 0) },
+    { label: "Shielding (allies)", value: short(p.shieldTeammates ?? 0) },
+    { label: "CC time", value: `${Math.round(p.ccTime ?? 0)}s` },
+    { label: "Vision", value: `${p.visionScore}` },
+    { label: "Wards placed", value: `${p.wardsPlaced}` },
+    { label: "CS", value: `${p.cs} (${mins > 0 ? (p.cs / mins).toFixed(1) : "0"}/m)` },
+    { label: "Gold", value: short(p.gold) },
+    { label: "Solo kills", value: `${p.soloKills ?? 0}` },
+    { label: "Best spree", value: `${p.killingSpree ?? 0}` },
+    { label: "Largest multikill", value: `${p.multikill ?? 0}` },
+    { label: "Objectives stolen", value: `${p.objectivesStolen ?? 0}` },
+  ];
+  const build = (items ?? []).slice(0, 7);
+  return (
+    <div className="border-t border-line/40 bg-bg/30 px-3 py-3">
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-6">
+        {stats.map((s) => (
+          <div key={s.label} className="notch notch-sm bg-surface-2/40 px-2 py-1.5">
+            <div className="text-[10px] uppercase tracking-wide text-ink-faint">{s.label}</div>
+            <div className="font-mono text-sm font-semibold tnum">{s.value}</div>
+          </div>
         ))}
+      </div>
+      <div className="mt-2.5 flex items-center gap-2">
+        <span className="text-[10px] uppercase tracking-wide text-ink-faint">Final build</span>
+        <div className="flex flex-wrap gap-1">
+          {build.length ? (
+            build.map((id, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={i} src={itemIcon(id)} alt="" width={22} height={22} className="rounded-sm bg-surface-3 ring-1 ring-line/50" />
+            ))
+          ) : (
+            <span className="text-2xs text-ink-faint">—</span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -389,7 +440,7 @@ function ArenaBoard({
   data: MatchDetailData;
   mins: number;
   maxDmg: number;
-  rel: (puuid: string) => Relation;
+  rel: (p: MatchPlayer) => Relation;
   items?: Record<number, number[]>;
 }) {
   const subteams = [...new Set(data.players.map((p) => p.subteamId))].sort((a, b) => {
@@ -409,7 +460,7 @@ function ArenaBoard({
             </div>
             <div className="divide-y divide-line/40">
               {roster.map((p) => (
-                <PlayerRow key={p.puuid} p={p} region={data.region} mins={mins} maxDmg={maxDmg} maxTaken={maxDmg} mvp={false} relation={rel(p.puuid)} items={items?.[p.participantId]} />
+                <PlayerRow key={p.puuid} p={p} region={data.region} mins={mins} maxDmg={maxDmg} maxTaken={maxDmg} mvp={false} relation={rel(p)} items={items?.[p.participantId]} />
               ))}
             </div>
           </div>
