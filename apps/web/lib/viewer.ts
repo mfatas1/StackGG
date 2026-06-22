@@ -54,6 +54,24 @@ export async function getViewerRelation(viewedPuuid: string): Promise<ViewerRela
   };
 }
 
+/**
+ * The signed-in viewer's own linked puuids + every puuid across all stacks they belong to.
+ * Used to flag "in your stack" on the in-depth match page. Empty when not signed in or no
+ * linked accounts (so we only highlight when we actually know who the viewer is).
+ */
+export async function getViewerStack(): Promise<{ myPuuids: string[]; stackPuuids: string[] }> {
+  const user = await getCurrentUser();
+  if (!user) return { myPuuids: [], stackPuuids: [] };
+  const myPuuids = (await getClaimedAccounts(user.id)).map((a) => a.puuid);
+  if (!myPuuids.length) return { myPuuids: [], stackPuuids: [] };
+  const rows = await query<{ puuid: string }>(
+    `SELECT DISTINCT puuid FROM crew_members
+      WHERE crew_id IN (SELECT crew_id FROM crew_members WHERE puuid = ANY($1::text[]))`,
+    [myPuuids],
+  );
+  return { myPuuids, stackPuuids: rows.map((r) => r.puuid) };
+}
+
 /** Together-record: distinct SR games where the viewed player and any of the viewer's
  *  accounts were on the same team. */
 export async function getDuoRecord(viewerPuuids: string[], viewedPuuid: string): Promise<{ games: number; wins: number }> {

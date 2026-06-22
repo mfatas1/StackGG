@@ -1,6 +1,6 @@
-import { Crown, Coins, Flame, Eye, Castle } from "lucide-react";
+import { Crown, Coins, Flame, Eye, Castle, Users2 } from "lucide-react";
 import { QUEUE_LABEL, QUEUES } from "@crewstats/shared";
-import type { MatchDetailData, MatchPlayer, TeamSummary, MatchTimeline, GoldFrame } from "@/lib/match";
+import type { MatchDetailData, MatchPlayer, TeamSummary, MatchTimeline, GoldFrame, TeamObjectives } from "@/lib/match";
 import { ChampIcon, RoleIcon } from "../kit/Avatar";
 import { PlayerLink } from "../kit/links";
 import { mvpOf } from "@/lib/carry";
@@ -17,8 +17,31 @@ const kdaTone = (r: number) => (r >= 5 ? "text-elite" : r >= 3 ? "text-win" : r 
 // damage-taken columns flex-grow to soak up the middle space (no big empty gap).
 const COL = { name: "w-32 sm:w-44", kda: "w-24", cs: "w-14", gold: "w-14", vis: "w-10", build: "w-[52px]" };
 
-export function MatchDetail({ data, tracked, timeline }: { data: MatchDetailData; tracked: string[]; timeline?: MatchTimeline }) {
+// How the signed-in viewer relates to a player in this lobby.
+type Relation = "you" | "stack" | "tracked" | "none";
+
+export function MatchDetail({
+  data,
+  tracked,
+  stack = [],
+  me = [],
+  timeline,
+}: {
+  data: MatchDetailData;
+  tracked: string[];
+  stack?: string[]; // viewer's stackmate puuids (signed in)
+  me?: string[]; // viewer's own puuids (signed in)
+  timeline?: MatchTimeline;
+}) {
   const trackedSet = new Set(tracked);
+  const meSet = new Set(me);
+  const stackSet = new Set(stack);
+  const signedIn = stackSet.size > 0; // we know who the viewer is (and which players are theirs)
+  // When signed in, only the viewer's own accounts / stackmates are flagged. When not, fall
+  // back to the generic "tracked" tint so known players still stand out for anonymous visitors.
+  const relationOf = (puuid: string): Relation =>
+    meSet.has(puuid) ? "you" : stackSet.has(puuid) ? "stack" : !signedIn && trackedSet.has(puuid) ? "tracked" : "none";
+
   const arena = data.queueId === QUEUES.ARENA;
   const mins = data.gameDuration / 60;
   const maxDmg = Math.max(1, ...data.players.map((p) => p.damage));
@@ -29,7 +52,7 @@ export function MatchDetail({ data, tracked, timeline }: { data: MatchDetailData
       <Header data={data} />
       {timeline && timeline.gold.length > 1 && <GoldGraph gold={timeline.gold} />}
       {arena ? (
-        <ArenaBoard data={data} mins={mins} maxDmg={maxDmg} trackedSet={trackedSet} items={timeline?.itemsByParticipant} />
+        <ArenaBoard data={data} mins={mins} maxDmg={maxDmg} rel={relationOf} items={timeline?.itemsByParticipant} />
       ) : (
         <div className="space-y-3">
           {data.teams.map((team) => (
@@ -41,8 +64,9 @@ export function MatchDetail({ data, tracked, timeline }: { data: MatchDetailData
               mins={mins}
               maxDmg={maxDmg}
               maxTaken={maxTaken}
-              trackedSet={trackedSet}
+              rel={relationOf}
               dragons={timeline?.dragonsByTeam[team.teamId]}
+              objectives={timeline?.objectivesByTeam[team.teamId]}
               items={timeline?.itemsByParticipant}
             />
           ))}
@@ -145,8 +169,9 @@ function TeamBlock({
   mins,
   maxDmg,
   maxTaken,
-  trackedSet,
+  rel,
   dragons,
+  objectives,
   items,
 }: {
   team: TeamSummary;
@@ -155,12 +180,18 @@ function TeamBlock({
   mins: number;
   maxDmg: number;
   maxTaken: number;
-  trackedSet: Set<string>;
+  rel: (puuid: string) => Relation;
   dragons?: string[];
+  objectives?: TeamObjectives;
   items?: Record<number, number[]>;
 }) {
   const mvpPuuid = mvpOf(roster)?.puuid;
   const teamTone = team.teamId === 100 ? "text-primary" : "text-loss";
+  // Prefer timeline-derived objective counts (reliable on raw-less matches); fall back to
+  // the match payload's team totals.
+  const barons = objectives?.barons ?? team.barons;
+  const heralds = objectives?.heralds ?? team.heralds;
+  const towers = objectives?.towers ?? team.towers;
   return (
     <div className="notch overflow-hidden border border-line/60 bg-surface-2/30">
       {/* Team header: result + totals + objectives (no "Blue/Red Team" label) */}
@@ -175,7 +206,7 @@ function TeamBlock({
           <Coins className="h-3.5 w-3.5 text-gold" /> {short(team.gold)}
         </span>
         <div className={`flex flex-wrap items-center gap-2.5 ${teamTone}`}>
-          {team.barons > 0 && <Obj icon={<ObjImg file="baron" name="Baron" size={16} />} n={team.barons} label="Barons" />}
+          {barons > 0 && <Obj icon={<ObjImg file="baron" name="Baron" size={16} />} n={barons} label="Barons" />}
           {dragons && dragons.length > 0 ? (
             <span className="flex items-center gap-1" title={`Drakes: ${dragons.join(", ")}`}>
               {dragons.map((d, i) => (
@@ -185,8 +216,8 @@ function TeamBlock({
           ) : (
             team.dragons > 0 && <Obj icon={<Flame className="h-3.5 w-3.5" />} n={team.dragons} label="Dragons" />
           )}
-          {team.heralds > 0 && <Obj icon={<Eye className="h-3.5 w-3.5" />} n={team.heralds} label="Rift Heralds" />}
-          {team.towers > 0 && <Obj icon={<Castle className="h-3.5 w-3.5" />} n={team.towers} label="Towers" />}
+          {heralds > 0 && <Obj icon={<Eye className="h-3.5 w-3.5" />} n={heralds} label="Rift Heralds" />}
+          {towers > 0 && <Obj icon={<Castle className="h-3.5 w-3.5" />} n={towers} label="Towers" />}
         </div>
       </div>
 
@@ -213,7 +244,7 @@ function TeamBlock({
             maxDmg={maxDmg}
             maxTaken={maxTaken}
             mvp={p.puuid === mvpPuuid}
-            crew={trackedSet.has(p.puuid)}
+            relation={rel(p.puuid)}
             items={items?.[p.participantId]}
           />
         ))}
@@ -229,7 +260,7 @@ function PlayerRow({
   maxDmg,
   maxTaken,
   mvp,
-  crew,
+  relation,
   items,
 }: {
   p: MatchPlayer;
@@ -238,17 +269,23 @@ function PlayerRow({
   maxDmg: number;
   maxTaken: number;
   mvp: boolean;
-  crew: boolean;
+  relation: Relation;
   items?: number[];
 }) {
   const ratio = kdaRatio(p.kills, p.deaths, p.assists);
   const csPerMin = mins > 0 ? (p.cs / mins).toFixed(1) : "0";
   const linkable = p.riotId !== "Player" && p.tag.length > 0;
+  const mine = relation === "you" || relation === "stack";
+  // MVP glow wins the row background; stack/you/tracked tint it otherwise.
   const rowTone = mvp
     ? "bg-gold/10 ring-1 ring-inset ring-gold/40 shadow-[inset_0_0_18px_rgba(202,168,90,0.18)]"
-    : crew
-      ? "bg-primary/10"
-      : "";
+    : relation === "you"
+      ? "bg-primary/15 ring-1 ring-inset ring-primary/40"
+      : relation === "stack"
+        ? "bg-primary/10"
+        : relation === "tracked"
+          ? "bg-primary/[0.06]"
+          : "";
   return (
     <div className={`flex items-center gap-3 px-3 py-1.5 text-sm ${rowTone}`}>
       {/* champ + level + role */}
@@ -268,13 +305,22 @@ function PlayerRow({
 
       {/* name + champion */}
       <div className={`${COL.name} min-w-0 shrink-0`}>
-        {linkable ? (
-          <PlayerLink riotId={p.riotId} tag={p.tag} region={region} className={`block truncate ${crew || mvp ? "font-semibold text-ink" : "font-medium"}`}>
-            {p.riotId}
-          </PlayerLink>
-        ) : (
-          <span className="block truncate font-medium text-ink-dim">{p.riotId}</span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {linkable ? (
+            <PlayerLink riotId={p.riotId} tag={p.tag} region={region} className={`min-w-0 truncate ${mine || mvp ? "font-semibold text-ink" : "font-medium"}`}>
+              {p.riotId}
+            </PlayerLink>
+          ) : (
+            <span className="min-w-0 truncate font-medium text-ink-dim">{p.riotId}</span>
+          )}
+          {relation === "you" ? (
+            <span className="shrink-0 rounded bg-primary/20 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">You</span>
+          ) : relation === "stack" ? (
+            <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary" title="In your stack">
+              <Users2 className="h-2.5 w-2.5" /> Stack
+            </span>
+          ) : null}
+        </div>
         <span className="flex items-center gap-1 truncate text-2xs text-ink-faint">
           {p.championName}
           {mvp && <span className="inline-flex items-center gap-0.5 text-gold"><Crown className="h-3 w-3" /> MVP</span>}
@@ -337,13 +383,13 @@ function ArenaBoard({
   data,
   mins,
   maxDmg,
-  trackedSet,
+  rel,
   items,
 }: {
   data: MatchDetailData;
   mins: number;
   maxDmg: number;
-  trackedSet: Set<string>;
+  rel: (puuid: string) => Relation;
   items?: Record<number, number[]>;
 }) {
   const subteams = [...new Set(data.players.map((p) => p.subteamId))].sort((a, b) => {
@@ -363,7 +409,7 @@ function ArenaBoard({
             </div>
             <div className="divide-y divide-line/40">
               {roster.map((p) => (
-                <PlayerRow key={p.puuid} p={p} region={data.region} mins={mins} maxDmg={maxDmg} maxTaken={maxDmg} mvp={false} crew={trackedSet.has(p.puuid)} items={items?.[p.participantId]} />
+                <PlayerRow key={p.puuid} p={p} region={data.region} mins={mins} maxDmg={maxDmg} maxTaken={maxDmg} mvp={false} relation={rel(p.puuid)} items={items?.[p.participantId]} />
               ))}
             </div>
           </div>
