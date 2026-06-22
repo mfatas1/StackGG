@@ -10,15 +10,18 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ matchId: string }> }): Promise<Metadata> {
   const { matchId } = await params;
-  const data = await getMatchDetail(decodeURIComponent(matchId)); // cached, so the page load reuses this
-  const queue = data ? QUEUE_LABEL[data.queueId] ?? "Game" : "Game";
+  // Cheap title lookup — avoid loading the full match (and a Riot call) just for metadata.
+  const rows = await query<{ queue_id: number }>(`SELECT queue_id FROM matches WHERE match_id = $1`, [decodeURIComponent(matchId)], getPool());
+  const queue = rows[0] ? QUEUE_LABEL[rows[0].queue_id] ?? "Game" : "Game";
   return { title: `${queue} — game detail · CrewStats`, robots: { index: false, follow: false } };
 }
 
 export default async function MatchPage({ params }: { params: Promise<{ matchId: string }> }) {
   const { matchId } = await params;
   const id = decodeURIComponent(matchId);
-  const data = await getMatchDetail(id);
+  // Live-first: full per-player stats + current-key puuids (stored raw for old games is
+  // trimmed and key-stale). Falls back to stored raw if the live fetch fails.
+  const data = await getMatchDetail(id, { preferLive: true });
   if (!data) notFound();
 
   // Tracked crew members in this lobby + the on-demand timeline insights (drakes, gold

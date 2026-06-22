@@ -187,56 +187,57 @@ function patchFromVersion(v: string | undefined): string | null {
 const cache = new Map<string, { at: number; data: MatchDetailData }>();
 const TTL = 1000 * 60 * 30;
 
-/** Full lobby + meta for one game, or null if it can't be loaded. */
-export async function getMatchDetail(matchId: string): Promise<MatchDetailData | null> {
+/**
+ * Full lobby + meta for one game, or null if it can't be loaded.
+ *
+ * `preferLive` (the in-depth page) fetches the match live FIRST: stored raw for older games
+ * is trimmed (the extra per-player stats — turret/objective damage, vision, wards, etc. —
+ * weren't captured at ingest) and carries old-key puuids, so a live fetch gives full,
+ * current-key data. The cheap inline scoreboards leave it off and read stored-raw-first.
+ */
+export async function getMatchDetail(matchId: string, opts: { preferLive?: boolean } = {}): Promise<MatchDetailData | null> {
   const platform = platformFromMatchId(matchId);
   if (!platform) return null;
 
-  const hit = cache.get(matchId);
+  const cacheKey = opts.preferLive ? `${matchId}|live` : matchId;
+  const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < TTL) return hit.data;
 
   const build = (info: RawInfo, gameStart: string | null, patch: string | null): MatchDetailData => {
     const players = mapPlayers(info.participants);
-    return {
-      matchId,
-      region: platform,
-      queueId: info.queueId,
-      gameDuration: info.gameDuration,
-      gameStart,
-      patch,
-      players,
-      teams: summarizeTeams(players, info.teams),
-    };
+    return { matchId, region: platform, queueId: info.queueId, gameDuration: info.gameDuration, gameStart, patch, players, teams: summarizeTeams(players, info.teams) };
   };
 
-  // 1) Prefer the stored raw payload — full lobby, no Riot request.
-  try {
+  const fromStored = async (): Promise<MatchDetailData | null> => {
     const rows = await query<{ raw: { info?: RawInfo } | null; game_start: string | null; patch: string | null }>(
       `SELECT raw, game_start::text AS game_start, patch FROM matches WHERE match_id = $1`,
       [matchId],
       getPool(),
     );
     const info = rows[0]?.raw?.info;
-    if (info?.participants?.length) {
-      const data = build(info, rows[0]?.game_start ?? null, rows[0]?.patch ?? patchFromVersion(info.gameVersion));
-      cache.set(matchId, { at: Date.now(), data });
-      return data;
-    }
-  } catch {
-    // fall through to a live fetch
-  }
+    if (!info?.participants?.length) return null;
+    return build(info, rows[0]?.game_start ?? null, rows[0]?.patch ?? patchFromVersion(info.gameVersion));
+  };
 
-  // 2) Fall back to a live Riot fetch (needs a valid dev key).
-  try {
-    const match = await getRiotClient().getMatch(matchId, platform);
+  const fromLive = async (): Promise<MatchDetailData | null> => {
+    const match = await getRiotClient().getMatch(matchId, platform); // needs a valid key
     const info = match.info as unknown as RawInfo;
-    const gameStart = info.gameStartTimestamp ?? info.gameCreation;
-    const data = build(info, gameStart ? new Date(gameStart).toISOString() : null, patchFromVersion(info.gameVersion));
-    cache.set(matchId, { at: Date.now(), data });
-    return data;
-  } catch {
-    return null;
+    const gs = info.gameStartTimestamp ?? info.gameCreation;
+    return build(info, gs ? new Date(gs).toISOString() : null, patchFromVersion(info.gameVersion));
+  };
+
+  for (const src of opts.preferLive ? [fromLive, fromStored] : [fromStored, fromLive]) {
+    try {
+      const data = await src();
+      if (data) {
+        cache.set(cacheKey, { at: Date.now(), data });
+        return data;
+      }
+    } catch {
+      // try the next source
+    }
   }
+  return null;
 }
 
 // monsterSubType (timeline) -> the in-game elemental drake name.
