@@ -256,8 +256,19 @@ export interface GoldFrame {
   goldDiff: number; // blue total gold − red
   xpDiff: number; // blue total xp − red
 }
+export interface TeamObjectives {
+  barons: number;
+  heralds: number;
+  towers: number;
+  grubs: number;
+}
 export interface MatchTimeline {
   dragonsByTeam: Record<number, string[]>; // ordered drakes per team (for the header)
+  // Per-team objective counts derived from the timeline. We use these instead of the
+  // match payload's teams[].objectives because that block is dropped on the live-fetch
+  // path (the MatchDto zod schema doesn't parse `teams`) — so on matches without stored
+  // raw, baron/herald/tower counts would otherwise read 0.
+  objectivesByTeam: Record<number, TeamObjectives>;
   gold: GoldFrame[]; // per-minute blue−red gold/xp advantage
   markers: TimelineMarker[]; // kills + objectives + buildings + aces, time-positioned
   // Reconstructed final inventory, keyed by participant SLOT (1-10), not puuid — the
@@ -267,7 +278,7 @@ export interface MatchTimeline {
 }
 
 const teamOf = (id?: number) => (id && id <= 5 ? 100 : id ? 200 : null);
-const EMPTY_TL: MatchTimeline = { dragonsByTeam: {}, gold: [], markers: [], itemsByParticipant: {} };
+const EMPTY_TL: MatchTimeline = { dragonsByTeam: {}, objectivesByTeam: {}, gold: [], markers: [], itemsByParticipant: {} };
 const tlCache = new Map<string, { at: number; data: MatchTimeline }>();
 
 /**
@@ -365,7 +376,18 @@ export async function getMatchTimeline(matchId: string): Promise<MatchTimeline> 
     const itemsByParticipant: Record<number, number[]> = {};
     for (const [pid, list] of inv) itemsByParticipant[pid] = list;
 
-    const data: MatchTimeline = { dragonsByTeam, gold, markers, itemsByParticipant };
+    // Per-team objective tallies from the markers (key-independent, raw-independent).
+    const objectivesByTeam: Record<number, TeamObjectives> = {};
+    for (const m of markers) {
+      if (m.team == null) continue;
+      const o = (objectivesByTeam[m.team] ??= { barons: 0, heralds: 0, towers: 0, grubs: 0 });
+      if (m.kind === "baron") o.barons++;
+      else if (m.kind === "herald") o.heralds++;
+      else if (m.kind === "tower") o.towers++;
+      else if (m.kind === "grub") o.grubs++;
+    }
+
+    const data: MatchTimeline = { dragonsByTeam, objectivesByTeam, gold, markers, itemsByParticipant };
     tlCache.set(matchId, { at: Date.now(), data });
     return data;
   } catch {
