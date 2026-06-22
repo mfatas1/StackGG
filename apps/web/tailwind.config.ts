@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 
 /**
- * CrewStats / StackGG — warm-dark Hextech (coral + gold on warm charcoal).
+ * StackGG — warm-dark Hextech (coral + gold on warm charcoal).
  *
  * Per FRONTEND_PLAN §3 + DESIGN.md color palette: the identity is a warm-charcoal
  * surface ramp, a CORAL primary (hue 45), and GOLD for rank / #1. The only cool

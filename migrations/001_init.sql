@@ -1,4 +1,4 @@
--- CrewStats schema (PLAN.md §8). Single migration for v1.
+-- StackGG schema (PLAN.md §8). Single migration for v1.
 -- Postgres 13+ (gen_random_uuid built in).
 
 CREATE TABLE IF NOT EXISTS users (
