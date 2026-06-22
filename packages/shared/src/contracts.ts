@@ -120,22 +120,12 @@ export const PlayerIdentitySchema = z.object({
 });
 export type PlayerIdentity = z.infer<typeof PlayerIdentitySchema>;
 
-export const FrequentTeammateSchema = z.object({
-  puuid: z.string(),
-  riotId: z.string(),
-  tag: z.string(),
-  gamesTogether: z.number(),
-  winsTogether: z.number(),
-});
-export type FrequentTeammate = z.infer<typeof FrequentTeammateSchema>;
-
 export const PlayerSnapshotSchema = z.object({
   identity: PlayerIdentitySchema,
   rankSolo: RankInfoSchema.nullable(),
   rankFlex: RankInfoSchema.nullable(),
   modes: z.array(ModeStatsSchema),
   recentForm: z.array(z.enum(["W", "L"])), // last N across tracked queues
-  frequentTeammates: z.array(FrequentTeammateSchema),
   lastUpdated: z.string().nullable(),
 });
 export type PlayerSnapshot = z.infer<typeof PlayerSnapshotSchema>;

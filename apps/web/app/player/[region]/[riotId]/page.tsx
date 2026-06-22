@@ -17,7 +17,6 @@ import { BackfillBanner } from "@/components/board/BackfillBanner";
 import { RefreshProfileButton } from "@/components/board/RefreshProfileButton";
 import { parseQueueSlug } from "@/components/kit/Tabs";
 import { LANES } from "@/lib/filters";
-import { PlayerLink } from "@/components/kit/links";
 import { RoutePose } from "@/components/rift/RoutePose";
 import { pct, timeAgo } from "@/lib/format";
 
@@ -174,30 +173,6 @@ export default async function PlayerSnapshot({
         </div>
       )}
 
-      {/* Self: your private "who you queue with" funnel — full-width, wraps into columns. */}
-      {isSelf && s.frequentTeammates.length > 0 && (
-        <Frame>
-          <PanelHead title="Players you queue with" />
-          <div className="p-4 pt-3">
-            <p className="mb-3 text-sm text-ink-dim">
-              <span className="font-semibold text-ink">{s.frequentTeammates.length}</span> players you queue with often — create a stack to see how you play <em>together</em>.
-            </p>
-            <ul className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-              {s.frequentTeammates.slice(0, 6).map((t) => (
-                <li key={t.puuid} className="notch notch-sm flex items-center justify-between gap-2 border border-line/60 bg-surface-2/40 px-3 py-2 text-sm">
-                  <PlayerLink riotId={t.riotId} tag={t.tag} region={region} className="min-w-0 truncate font-medium" />
-                  <span className="shrink-0 text-2xs text-ink-faint tnum">
-                    {t.gamesTogether}g · {t.gamesTogether ? pct(t.winsTogether / t.gamesTogether) : "—"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <Link href="/stack/new" className="mt-4 inline-block">
-              <Button>Create a stack</Button>
-            </Link>
-          </div>
-        </Frame>
-      )}
 
       <Section title="Match history" action={<RoleFilter basePath={basePath} active={roleKey} q={queue} champ={champ} availableRoles={champLanes} />}>
         <div className="mb-3 space-y-3">

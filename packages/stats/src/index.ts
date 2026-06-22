@@ -1,6 +1,5 @@
 export * from "./util.js";
 export * from "./modes.js";
-export * from "./teammates.js";
 export * from "./snapshot.js";
 export * from "./history.js";
 export * from "./insights.js";
