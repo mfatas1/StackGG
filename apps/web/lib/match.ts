@@ -23,6 +23,8 @@ interface RawParticipant {
   deaths: number;
   assists: number;
   totalDamageDealtToChampions: number;
+  damageDealtToTurrets?: number;
+  damageDealtToObjectives?: number;
   goldEarned: number;
   totalMinionsKilled: number;
   neutralMinionsKilled?: number;
@@ -72,6 +74,8 @@ export interface MatchPlayer extends CarryStats {
   deaths: number;
   assists: number;
   damage: number;
+  damageToTurrets: number;
+  damageToObjectives: number;
   gold: number;
   cs: number;
   visionScore: number;
@@ -119,6 +123,8 @@ function mapPlayers(participants: RawParticipant[]): MatchPlayer[] {
     deaths: p.deaths,
     assists: p.assists,
     damage: p.totalDamageDealtToChampions,
+    damageToTurrets: p.damageDealtToTurrets ?? 0,
+    damageToObjectives: p.damageDealtToObjectives ?? 0,
     gold: p.goldEarned,
     cs: p.totalMinionsKilled + (p.neutralMinionsKilled ?? 0),
     visionScore: p.visionScore ?? 0,
@@ -269,6 +275,10 @@ export interface MatchTimeline {
   // path (the MatchDto zod schema doesn't parse `teams`) — so on matches without stored
   // raw, baron/herald/tower counts would otherwise read 0.
   objectivesByTeam: Record<number, TeamObjectives>;
+  // participant slot (1-10) -> puuid, from the LIVE timeline (current Riot key). Lets the
+  // page remap a stored match's old-key lobby puuids to current ones so "in your stack"
+  // resolves on old games too.
+  puuidBySlot: Record<number, string>;
   gold: GoldFrame[]; // per-minute blue−red gold/xp advantage
   markers: TimelineMarker[]; // kills + objectives + buildings + aces, time-positioned
   // Reconstructed final inventory, keyed by participant SLOT (1-10), not puuid — the
@@ -278,7 +288,7 @@ export interface MatchTimeline {
 }
 
 const teamOf = (id?: number) => (id && id <= 5 ? 100 : id ? 200 : null);
-const EMPTY_TL: MatchTimeline = { dragonsByTeam: {}, objectivesByTeam: {}, gold: [], markers: [], itemsByParticipant: {} };
+const EMPTY_TL: MatchTimeline = { dragonsByTeam: {}, objectivesByTeam: {}, puuidBySlot: {}, gold: [], markers: [], itemsByParticipant: {} };
 const tlCache = new Map<string, { at: number; data: MatchTimeline }>();
 
 /**
@@ -387,7 +397,10 @@ export async function getMatchTimeline(matchId: string): Promise<MatchTimeline> 
       else if (m.kind === "grub") o.grubs++;
     }
 
-    const data: MatchTimeline = { dragonsByTeam, objectivesByTeam, gold, markers, itemsByParticipant };
+    const puuidBySlot: Record<number, string> = {};
+    for (const part of tl.info?.participants ?? []) puuidBySlot[part.participantId] = part.puuid;
+
+    const data: MatchTimeline = { dragonsByTeam, objectivesByTeam, puuidBySlot, gold, markers, itemsByParticipant };
     tlCache.set(matchId, { at: Date.now(), data });
     return data;
   } catch {
