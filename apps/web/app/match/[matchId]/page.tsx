@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ matchId: 
   // Cheap title lookup — avoid loading the full match (and a Riot call) just for metadata.
   const rows = await query<{ queue_id: number }>(`SELECT queue_id FROM matches WHERE match_id = $1`, [decodeURIComponent(matchId)], getPool());
   const queue = rows[0] ? QUEUE_LABEL[rows[0].queue_id] ?? "Game" : "Game";
-  return { title: `${queue} — game detail · CrewStats`, robots: { index: false, follow: false } };
+  return { title: `${queue} — game detail · StackGG`, robots: { index: false, follow: false } };
 }
 
 export default async function MatchPage({ params }: { params: Promise<{ matchId: string }> }) {

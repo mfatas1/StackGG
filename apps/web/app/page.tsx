@@ -120,13 +120,13 @@ export default function Landing() {
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-24">
         <div className="grid items-center gap-10 lg:grid-cols-2">
           <Reveal>
-            <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">We already know who you queue with.</h2>
-            <p className="mt-3 max-w-md text-ink-dim">Enter your Riot ID and we surface the players you stack with most, from your own match history. One link in the server and the stack assembles itself.</p>
+            <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">One link. The whole squad.</h2>
+            <p className="mt-3 max-w-md text-ink-dim">Make a stack, drop the invite link in your server, and everyone adds their own Riot ID. StackGG stitches your games into one shared page — leaderboard, duos, head-to-head.</p>
           </Reveal>
           <Reveal delay={100}>
             <Frame>
               <div className="p-6">
-                <p className="mb-4 text-2xs font-medium uppercase tracking-[0.14em] text-ink-faint">Detected from your recent games</p>
+                <p className="mb-4 text-2xs font-medium uppercase tracking-[0.14em] text-ink-faint">Your squad, one by one</p>
                 <div className="flex flex-wrap items-center gap-3">
                   {["Sofía", "Mateo", "Drei", "Kasia", "Nael"].map((n, i) => (
                     <div key={n} className="notch notch-sm flex animate-[fade-up_0.5s_both] items-center gap-2 border border-line/60 bg-surface-2/50 py-1.5 pl-1.5 pr-3.5" style={{ animationDelay: `${i * 110}ms` }}>
@@ -136,7 +136,7 @@ export default function Landing() {
                   ))}
                   <div className="notch notch-sm flex items-center gap-1.5 border border-dashed border-primary/50 bg-primary/10 py-1.5 pl-3 pr-3.5 text-primary">
                     <Plus className="h-4 w-4" />
-                    <span className="text-sm font-semibold">your stack</span>
+                    <span className="text-sm font-semibold">invite link</span>
                   </div>
                 </div>
               </div>
