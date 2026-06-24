@@ -28,7 +28,7 @@ export interface BackfillOptions {
   days?: number;
   /** puuids whose participant rows to persist from each fetched match (the crew). */
   trackedPuuids?: Set<string>;
-  /** store full match JSON (needed for snapshot frequent-teammate detection). */
+  /** store full match JSON (needed by the in-depth match page for builds/scoreboard). */
   storeRaw?: boolean;
   /** quick mode: only the most recent N matches per queue (single page, no pagination). */
   recentOnlyPerQueue?: number;

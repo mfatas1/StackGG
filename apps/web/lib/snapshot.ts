@@ -21,9 +21,9 @@ export type SnapshotResult =
 
 /**
  * On-demand player snapshot (PLAN §5.2, P0 #1: stats within ~10s on first visit).
- * Resolves the account, does a synchronous recent backfill (storeRaw for
- * frequent-teammate detection), enqueues a full 90-day backfill in the
- * background, then computes the snapshot from the DB.
+ * Resolves the account, does a synchronous recent backfill (storeRaw so the
+ * in-depth match page has full participant JSON), enqueues a full 90-day
+ * backfill in the background, then computes the snapshot from the DB.
  */
 export async function getOrBuildSnapshot(riotId: string, region: string): Promise<SnapshotResult> {
   if (!parseRiotId(riotId)) return { ok: false, code: "INVALID", message: "Enter a Riot ID like Name#TAG." };
