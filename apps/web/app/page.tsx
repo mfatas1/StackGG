@@ -121,7 +121,7 @@ export default function Landing() {
         <div className="grid items-center gap-10 lg:grid-cols-2">
           <Reveal>
             <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">One link. The whole squad.</h2>
-            <p className="mt-3 max-w-md text-ink-dim">Make a stack, drop the invite link in your server, and everyone adds their own Riot ID. StackGG stitches your games into one shared page — leaderboard, duos, head-to-head.</p>
+            <p className="mt-3 max-w-md text-ink-dim">Make a stack, drop the invite link in your server, and everyone adds their own Riot ID. StackGG stitches your games into one shared page — leaderboard, duos, records.</p>
           </Reveal>
           <Reveal delay={100}>
             <Frame>

@@ -21,7 +21,7 @@ export default function Legal() {
       <h2 className="text-lg font-semibold text-ink">Arena</h2>
       <p>
         In line with Riot&apos;s developer policy, StackGG never displays win rates for Arena augments or items. We only
-        show player- and duo-level stats such as placements and head-to-head records, which are permitted.
+        show player- and duo-level stats such as placements and duo synergy, which are permitted.
       </p>
       <h2 className="text-lg font-semibold text-ink">Removing your data</h2>
       <p>A stack owner can remove any member from the stack settings, which deletes that member&apos;s participation rows for the stack.</p>

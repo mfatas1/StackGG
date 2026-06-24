@@ -11,9 +11,9 @@ League of Legends is mostly played in friend groups that live on Discord — but
 - Who's the best among us, across ranked, flex, ARAM, **and** Arena?
 - Which duo actually wins together — and which one should stop queueing together?
 - What's our 5-stack's winrate when X junglas instead of Y?
-- What's our head-to-head record when we end up in the same Arena lobby?
+- Who holds the records — most kills in a game, best KDA, the longest game we ever won?
 
-StackGG is a website where any group of friends creates a shared **crew page** that answers exactly these. You sign up, create a crew, drop an invite link in your Discord, and the site continuously ingests everyone's match history from the Riot API — computing stats that only exist *across* the group.
+StackGG is a website where any group of friends creates a shared **stack page** that answers exactly these. You sign up, create a stack, drop an invite link in your Discord, and the site continuously ingests everyone's match history from the Riot API — computing stats that only exist *across* the group.
 
 ## Why this space is genuinely empty
 
@@ -24,16 +24,20 @@ StackGG is a website where any group of friends creates a shared **crew page** t
 
 ## What v1 includes
 
-- **Player snapshot** (no login): enter a Riot ID, see your cross-mode stats in under a minute, plus detected frequent teammates as the "create a crew" hook.
-- **Crew dashboard**: cross-mode leaderboard with recent form, metric cards, duo synergy winrates, activity feed of shared games.
-- **Crew member pages**: your stats with the crew as the reference set, partner-compatibility ranking.
+- **Player snapshot** (no login): enter a Riot ID, see your cross-mode stats in under a minute, then create or join a stack for the group view.
+- **Stack dashboard**: cross-mode leaderboard with recent form, metric cards, duo synergy winrates, lane leaders, playstyle tags, and an activity feed of shared games.
+- **Records page**: per-game bests, all-time totals, and per-minute rates across the stack.
+- **Stack member pages**: your stats with the stack as the reference set, plus partner-compatibility ranking.
+- **In-depth match page**: full scoreboard, gold graph, item builds, objective counts, and an "in your stack" flag for any game.
 - **Ingestion engine**: 90-day backfill on join, ~30-minute polling, rate-limit-safe Riot client.
 
 Explicitly **not** in v1: Discord integration (v2 — weekly digest via webhook, then a bot), builds/runes/tier lists, live game pages, individual coaching, public player search. See `PLAN.md` §3.
 
 ## How it works (short version)
 
-Next.js 15 + TypeScript monorepo with Postgres. A long-running worker ingests matches through a single rate-limited Riot API client (queues: 420 solo, 440 flex, 450 ARAM, 1700 Arena), deduplicating shared games. Stats (leaderboard, synergy, head-to-head) are pure SQL/TS computations over `match_participants`, cached per crew. Auth is email magic-link; crew membership is claim-by-Riot-ID (all displayed data is public match data — the same basis op.gg operates on). Hosting target: Railway/Fly (~$5–10/mo).
+Next.js 15 + TypeScript monorepo with Postgres. A long-running worker ingests matches through a single rate-limited Riot API client (queues: 420 solo, 440 flex, 450 ARAM, 1700 Arena), deduplicating shared games. Stats (leaderboard, synergy, records, tags) are pure SQL/TS computations over `match_participants`, cached per stack. Auth is email magic-link; membership is claim-by-Riot-ID (all displayed data is public match data — the same basis op.gg operates on). Hosting target: Railway/Fly (~$5–10/mo).
+
+(The product calls a friend group a *stack*; the code and database still call it a *crew* — `@crewstats/*` packages, `crews`/`crew_members` tables. Same concept.)
 
 Full detail — data model, endpoints, architecture diagram, milestones, risks, and the parallel-agent work plan — lives in [`PLAN.md`](./PLAN.md).
 
@@ -44,7 +48,7 @@ Full detail — data model, endpoints, architecture diagram, milestones, risks, 
 | M0 spike | Verify ARAM/Arena data shapes with a dev key (`spike/spike.mjs`) | ✅ done |
 | M1 skeleton | Monorepo scaffold, schema, shared contracts, rate-limited client, backfill job | ✅ done |
 | M2 crew core | Auth, crew create/join/invite, dashboard with real data | ✅ done (local) |
-| M3 polish | Player snapshot, head-to-head, flex role stats, empty states | ✅ done (local) |
+| M3 polish | Player snapshot, records/awards, flex role stats, playstyle tags, match page, empty states | ✅ done (local) |
 | M4 public | Deploy, disclaimer, production key application, share beyond friends | ✅ live at [stackgg.app](https://stackgg.app) |
 | v2 | Discord webhook digest → bot, RSO login, crew-vs-crew, other Riot titles | — |
 
@@ -59,7 +63,7 @@ npm run db:migrate
 # open http://localhost:3000
 ```
 
-Then: enter a Riot ID on the landing page to see a snapshot, or **Create a crew**
+Then: enter a Riot ID on the landing page to see a snapshot, or **Create a stack**
 (magic-link sign-in — in dev the link is printed to the server console and returned
 in the API response), share the `/join/<code>` link, and watch the dashboard fill in.
 
@@ -82,16 +86,13 @@ Tests: `npm test`. Typecheck: `npm run typecheck`.
 - **Deploy**: `Dockerfile` + `docker-compose.yml` are provided. Actual cloud
   deployment (Railway/Fly) needs your hosting account and a managed Postgres.
 
-## Spike (M0)
+## Spike (M0, historical)
 
-```bash
-# 1. Get a development key at https://developer.riotgames.com
-# 2. Run the spike to inspect real match JSON:
-RIOT_KEY=RGAPI-your-key node spike/spike.mjs "YourName#TAG" euw1
-# 3. Check spike-out/*.json — confirm Arena has playerSubteamId/subteamPlacement/augments
-```
-
-Requires Node 18+. Never commit your key; use `.env` once the app scaffold exists.
+The M0 spike that verified Riot's match-v5 data shapes is done; its throwaway script
+has been removed, but the sample output it produced is kept under [`spike-out/`](./spike-out)
+for reference (it confirmed Arena returns `playerSubteamId`/`subteamPlacement`/`augments`).
+The canonical match fixtures the app and tests build on live in
+`packages/shared/fixtures`. Requires Node 18+.
 
 ## Legal
 
