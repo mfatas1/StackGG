@@ -1,6 +1,8 @@
 # StackGG
 
-*Working name: StackGG. op.gg tells you how you play. StackGG tells you how your group plays together.*
+**Live at [stackgg.app](https://stackgg.app)**
+
+*op.gg tells you how you play. StackGG tells you how your group plays together.*
 
 ## The idea
 
@@ -43,7 +45,7 @@ Full detail — data model, endpoints, architecture diagram, milestones, risks, 
 | M1 skeleton | Monorepo scaffold, schema, shared contracts, rate-limited client, backfill job | ✅ done |
 | M2 crew core | Auth, crew create/join/invite, dashboard with real data | ✅ done (local) |
 | M3 polish | Player snapshot, head-to-head, flex role stats, empty states | ✅ done (local) |
-| M4 public | Deploy, disclaimer, production key application, share beyond friends | ⏳ deploy config ready; cloud deploy pending hosting account |
+| M4 public | Deploy, disclaimer, production key application, share beyond friends | ✅ live at [stackgg.app](https://stackgg.app) |
 | v2 | Discord webhook digest → bot, RSO login, crew-vs-crew, other Riot titles | — |
 
 ## Running the full app (local)
