@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./carry": "./src/carry.ts",
+    "./champions": "./src/champions.ts",
     "./fixtures": "./fixtures/index.ts"
   },
   "scripts": {

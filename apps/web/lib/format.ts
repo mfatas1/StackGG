@@ -1,4 +1,7 @@
-import { championDisplayName, type RankInfo } from "@crewstats/shared";
+import type { RankInfo } from "@crewstats/shared";
+// Import from the leaf subpath, NOT the package barrel: format.ts is pulled into client
+// bundles, and the barrel re-exports db.ts → pg (Node-only net/tls), which can't be bundled.
+import { championDisplayName } from "@crewstats/shared/champions";
 
 export const DDRAGON_VERSION = process.env.NEXT_PUBLIC_DDRAGON_VERSION ?? "16.12.1";
 
