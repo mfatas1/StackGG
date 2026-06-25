@@ -71,7 +71,6 @@ interface Agg {
   dodged: number;
   towerKills: number;
   fountain: number;
-  smiteless: number;
   saves: number;
   nightShare: number;
   avgDur: number; // average game length (seconds)
@@ -107,7 +106,7 @@ export async function getCrewTags(
        sum(COALESCE(mp.heal_teammates,0) + COALESCE(mp.shield_teammates,0)) AS heal_shield,
        avg(mp.team_damage_pct) AS team_dmg_pct, avg(mp.skillshots_dodged) AS dodged,
        sum(mp.kills_near_enemy_turret) AS tower_kills, sum(mp.fountain_takedowns) AS fountain,
-       sum(mp.smiteless_steals) FILTER (WHERE mp.role IS DISTINCT FROM 'JUNGLE') AS smiteless, sum(mp.ally_saves) AS saves,
+       sum(mp.ally_saves) AS saves,
        avg(CASE WHEN extract(hour FROM m.game_start AT TIME ZONE 'Europe/Paris') < 5 THEN 1 ELSE 0 END) AS night_share,
        avg(m.game_duration) AS avg_dur,
        stddev_samp((mp.kills + mp.assists)::float / GREATEST(mp.deaths, 1)) AS kda_sd
@@ -146,7 +145,6 @@ export async function getCrewTags(
     dodged: Number(r.dodged) || 0,
     towerKills: Number(r.tower_kills) || 0,
     fountain: Number(r.fountain) || 0,
-    smiteless: Number(r.smiteless) || 0,
     saves: Number(r.saves) || 0,
     nightShare: Number(r.night_share) || 0,
     avgDur: Number(r.avg_dur) || 0,
@@ -301,9 +299,6 @@ export async function getCrewTags(
     { key: "spree", label: "Spree King", tone: "flex", dir: 1, priority: 43, meaning: "Biggest killing sprees on average — perpetually snowballing.", sample: (a) => m(a.avgSpree, `${a.avgSpree.toFixed(1)} avg top spree`) },
     { key: "pentaking", label: "Pentakill King", tone: "flex", dir: 1, priority: 69, meaning: "Most pentakills in the group. ACE!", sample: (a) => m(a.pentas, `${a.pentas} penta${a.pentas === 1 ? "" : "s"}`) },
     { key: "towerdiver", label: "Tower Diver", tone: "flex", dir: 1, priority: 59, meaning: "Most kills under the enemy turret — fearless (or stupid).", sample: (a) => m(a.towerKills, `${a.towerKills} kills under tower`) },
-    // Smiteless Thief needs a genuine habit of it (>= 10 off-role steals), not just the
-    // stack's high z-score — anyone below that floor is left out of the comparison entirely.
-    { key: "smiteless", label: "Smiteless Thief", tone: "flex", dir: 1, priority: 66, meaning: "Stole an epic monster without smite — and not even as the jungler.", sample: (a) => (a.smiteless >= 10 ? m(a.smiteless, `${a.smiteless} steals off-role`) : null) },
 
     // ---- Identity (champion-anchored): metric = how concentrated / how cursed, with the
     // champ riding along in the label & detail. Needs a meaningfully-played champ to apply. ----
