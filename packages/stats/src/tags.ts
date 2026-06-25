@@ -28,6 +28,9 @@ export interface PlayerTag {
 
 const SR = `(${QUEUES.RANKED_SOLO}, ${QUEUES.RANKED_FLEX})`;
 const MIN_GAMES = 10;
+// Tags unlock only once the stack has a real group to compare against — at least this many
+// eligible (>= MIN_GAMES) players. Below it, z-scores aren't meaningful, so no tags show.
+const MIN_STACK = 5;
 // Minimum NON-support games before the CS-based farm tags (Farm King / Minion Hater) apply,
 // so the CS/min average is a real sample and primary supports are excluded from them.
 const CS_MIN = 5;
@@ -214,8 +217,8 @@ export async function getCrewTags(
   // standard deviations the player sits onto its favourable side. A player then keeps their
   // CAP_PER_PLAYER highest-scoring tags. No priorities, no axis-dedup, no absolute floors —
   // purely "how far from your stack are you, and in which direction". Comparison needs a real
-  // distribution, so require >= 3 eligible players.
-  if (elig.length < 3) return out;
+  // distribution, so tags stay locked until the stack has MIN_STACK eligible players.
+  if (elig.length < MIN_STACK) return out;
 
   const wr = (a: Agg) => (a.games ? a.wins / a.games : 0);
   const kda = (a: Agg) => (a.avgKills + a.avgAssists) / Math.max(a.avgDeaths, 0.6);
