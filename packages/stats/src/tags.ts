@@ -62,9 +62,9 @@ interface Agg {
   nsDamage: number; // avg damage over NON-support games (supports deal little by design)
   nsGold: number; //   avg gold over NON-support games (supports earn little by design)
   avgCc: number;
-  maxSpree: number;
+  avgSpree: number; // average per-game longest killing spree
   pentas: number;
-  solos: number;
+  avgSolos: number; // average solo kills per game
   steals: number;
   healShield: number;
   teamDmgPct: number;
@@ -102,7 +102,7 @@ export async function getCrewTags(
        avg(mp.damage_taken) AS avg_tank, avg(mp.damage) AS avg_damage, avg(mp.gold) AS avg_gold, avg(mp.cc_time) AS avg_cc,
        avg(mp.damage) FILTER (WHERE mp.role IS DISTINCT FROM 'UTILITY') AS avg_damage_ns,
        avg(mp.gold) FILTER (WHERE mp.role IS DISTINCT FROM 'UTILITY') AS avg_gold_ns,
-       max(mp.killing_spree) AS max_spree, sum(mp.pentakills) AS pentas, sum(mp.solo_kills) AS solos,
+       avg(mp.killing_spree) AS avg_spree, sum(mp.pentakills) AS pentas, avg(mp.solo_kills) AS avg_solos,
        sum(mp.objectives_stolen) AS steals,
        sum(COALESCE(mp.heal_teammates,0) + COALESCE(mp.shield_teammates,0)) AS heal_shield,
        avg(mp.team_damage_pct) AS team_dmg_pct, avg(mp.skillshots_dodged) AS dodged,
@@ -137,9 +137,9 @@ export async function getCrewTags(
     nsDamage: Number(r.avg_damage_ns) || 0,
     nsGold: Number(r.avg_gold_ns) || 0,
     avgCc: Number(r.avg_cc) || 0,
-    maxSpree: Number(r.max_spree) || 0,
+    avgSpree: Number(r.avg_spree) || 0,
     pentas: Number(r.pentas) || 0,
-    solos: Number(r.solos) || 0,
+    avgSolos: Number(r.avg_solos) || 0,
     steals: Number(r.steals) || 0,
     healShield: Number(r.heal_shield) || 0,
     teamDmgPct: Number(r.team_dmg_pct) || 0,
@@ -296,9 +296,9 @@ export async function getCrewTags(
 
     // ---- Rare / meme achievements. Mostly counts, so the players who never did the thing
     // sit at/below the stack mean and never clear MIN_Z — only the ones who did earn it. ----
-    { key: "solokiller", label: "Solo Killer", tone: "flex", dir: 1, priority: 52, meaning: "Most solo kills in the group — no help needed.", sample: (a) => m(a.solos, `${a.solos} solo kills`) },
+    { key: "solokiller", label: "Solo Killer", tone: "flex", dir: 1, priority: 52, meaning: "Most solo kills per game — no help needed.", sample: (a) => m(a.avgSolos, `${a.avgSolos.toFixed(1)} solo kills/game`) },
     { key: "thief", label: "Objective Thief", tone: "flex", dir: 1, priority: 65, meaning: "Stole the most Barons/Dragons. Smite diff.", sample: (a) => m(a.steals, `${a.steals} steals`) },
-    { key: "spree", label: "Spree King", tone: "flex", dir: 1, priority: 43, meaning: "Longest single killing spree without dying.", sample: (a) => m(a.maxSpree, `${a.maxSpree}-kill spree`) },
+    { key: "spree", label: "Spree King", tone: "flex", dir: 1, priority: 43, meaning: "Biggest killing sprees on average — perpetually snowballing.", sample: (a) => m(a.avgSpree, `${a.avgSpree.toFixed(1)} avg top spree`) },
     { key: "pentaking", label: "Pentakill King", tone: "flex", dir: 1, priority: 69, meaning: "Most pentakills in the group. ACE!", sample: (a) => m(a.pentas, `${a.pentas} penta${a.pentas === 1 ? "" : "s"}`) },
     { key: "towerdiver", label: "Tower Diver", tone: "flex", dir: 1, priority: 59, meaning: "Most kills under the enemy turret — fearless (or stupid).", sample: (a) => m(a.towerKills, `${a.towerKills} kills under tower`) },
     // Smiteless Thief needs a genuine habit of it (>= 10 off-role steals), not just the
