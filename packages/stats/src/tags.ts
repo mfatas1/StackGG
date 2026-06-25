@@ -1,9 +1,9 @@
 import { query, type Queryable, QUEUES, championDisplayName } from "@crewstats/shared";
 
 /**
- * Porofessor-style per-player "tags" shown inline on the leaderboard. These are almost
- * all RELATIVE crew superlatives — the best (or worst) in the group at some metric, with
- * a funny name for each extreme. Plus a couple of identity tags (OTP / Cursed champ).
+ * Porofessor-style per-player "tags" shown inline on the leaderboard. Every tag is a numeric
+ * metric scored by Z-SCORE against the whole stack: how many standard deviations the player
+ * sits onto the tag's favourable side. Each player keeps their few highest-z-score tags.
  * Summoner's Rift (ranked + flex) only, like the records.
  */
 export type TagTone = "shame" | "flex" | "neutral";
@@ -13,21 +13,15 @@ export interface PlayerTag {
   tone: TagTone;
   meaning: string;
   detail: string;
+  /** Tiebreak weight only — used to order tags with an identical z-score. */
   priority: number;
-  /**
-   * Axis this tag measures. Most metrics are correlated (kills/damage/KDA all say
-   * "good fighter"; vision/assists/heal all say "support"), so one player would sweep a
-   * whole cluster of near-synonym tags. We keep only a player's single highest-priority
-   * tag per axis. The rare/meme + identity tags use a unique axis (their own key) so they
-   * never collapse into each other — they're genuinely independent achievements.
-   */
+  /** The tag's underlying metric key. Kept for reference/debugging; not used for selection. */
   cluster: string;
   /**
-   * How far the holder leads the runner-up, as a fraction (0.30 = 30% ahead of #2).
-   * Normalized so it's comparable across metrics with wildly different units (kills vs
-   * damage vs gold). Used to pick which tag in a cluster a player most genuinely earned —
-   * e.g. a fragger who is 40% ahead on damage but only 8% ahead on kills shows Glass
-   * Cannon, not Bloodthirsty. ~5 means they're alone at the extreme (no runner-up).
+   * The player's directional z-score on this tag's metric — (value − stack mean) / stack
+   * stddev, sign-flipped for "low is the tag" metrics. This is the selection signal: a
+   * player keeps their highest-`lead` tags. ~0 = stack-average; higher = further onto the
+   * tag's favourable side than the rest of the stack.
    */
   lead: number;
 }
@@ -37,39 +31,12 @@ const MIN_GAMES = 10;
 // Minimum NON-support games before the CS-based farm tags (Farm King / Minion Hater) apply,
 // so the CS/min average is a real sample and primary supports are excluded from them.
 const CS_MIN = 5;
-// After axis-dedup, show at most this many tags per player — a tight, curated set beats a
-// wall of correlated superlatives. With dedup, 3 distinct tags is plenty.
+// Each player shows at most this many tags — their highest-z-score ones.
 const CAP_PER_PLAYER = 5;
-// A relative superlative is only awarded if the holder clearly separates from the
-// runner-up (leads #2 by this fraction). Stops noise tags in tight crews where someone
-// edges the field by a rounding error.
-const MARGIN = 0.07;
-// Lead value for a holder with no runner-up (alone at the extreme), and the cap we clamp
-// the relative lead to so one absurd outlier doesn't dwarf every comparison.
-const DOMINANT = 5;
-// Normalized lead of the holder over #2, as a fraction of #2's value — dimensionless so
-// it's comparable across metrics. Direction-aware: for "min" tags, leading means being
-// further BELOW the runner-up.
-const relLead = (dir: "max" | "min", hv: number, sv: number) => {
-  const base = Math.max(Math.abs(sv), 1e-9);
-  const gap = dir === "max" ? (hv - sv) / base : (sv - hv) / base;
-  return Math.min(Math.max(gap, 0), DOMINANT);
-};
-
-// Axis names — tags sharing an axis are near-synonyms; a player keeps only their top one.
-const AX = {
-  combat: "combat", // kills / damage / KDA — the fighting axis (high AND low ends)
-  winrate: "winrate", // win rate / streaks / form
-  survival: "survival", // deaths / damage taken / dodging
-  econ: "econ", // CS / gold
-  utility: "utility", // vision / assists / heal-shield / CC / saves — the support axis
-  activity: "activity", // games played / play hours
-  // ---- "Fun" personality axes — playstyle identity, decoupled from win/loss, so even a
-  // weaker player who plays for fun gets something to show off, not just shame tags. ----
-  champpool: "champpool", // how many champs you spread across (one-trick ↔ variety)
-  gamelength: "gamelength", // your games run long ↔ short
-  consistency: "consistency", // boom-or-bust ↔ same stat line every game
-} as const;
+// A tag is only awarded if the player is at least this many standard deviations onto the
+// favorable side of the stack (0 = anyone above/below the mean qualifies). Raise it to make
+// tags rarer / more "earned"; lower bound is the single knob for the whole system.
+const MIN_Z = 0;
 
 interface Agg {
   puuid: string;
@@ -233,235 +200,162 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   };
 
   const elig = aggs.filter((a) => a.games >= MIN_GAMES);
-  // Relative superlatives ("best/worst in the stack") only mean something with a real
-  // group to compare. With 1–2 eligible members one person wins every extreme (both
-  // "Int Andy" and "Cockroach"), so suppress them below this floor — identity tags
-  // (OTP / cursed champ) still show for solo and duo profiles.
-  const enough = elig.length >= 3;
+  // Z-score model: every tag is a numeric metric measured against the WHOLE stack. We
+  // compute each eligible player's z-score on that metric — (value − stack mean) / stack
+  // stddev — and flip the sign for "low is the tag" metrics, so a tag's score is how many
+  // standard deviations the player sits onto its favourable side. A player then keeps their
+  // CAP_PER_PLAYER highest-scoring tags. No priorities, no axis-dedup, no absolute floors —
+  // purely "how far from your stack are you, and in which direction". Comparison needs a real
+  // distribution, so require >= 3 eligible players.
+  if (elig.length < 3) return out;
+
   const wr = (a: Agg) => (a.games ? a.wins / a.games : 0);
   const kda = (a: Agg) => (a.avgKills + a.avgAssists) / Math.max(a.avgDeaths, 0.6);
-
-  // Absolute floors: a superlative should reflect an objectively good/bad number, not
-  // just the best/worst in *this* stack — so a winning record isn't branded "Anchor"
-  // and a strong line isn't branded "Liability" merely for trailing better teammates.
-  // Grounded in commonly-cited LoL benchmarks: KDA >2 is "good" and >3 strong; ~5-6
-  // deaths/game is average; non-support farming sits ~5-6 CS/min and 7+ is strong;
-  // vision is role-skewed (supports far higher); ~6 kills & ~9 assists/game are typical.
-  // These are gates on the relative winner, so they only ever *suppress* an undeserved
-  // tag — never invent one. Role/length-dependent totals (champ damage, gold, damage
-  // taken) are intentionally left as pure stack-relative: no fair absolute line exists
-  // across roles and game lengths. Tune any number here in one place.
-  const FLOOR = {
-    carryWr: 0.5, //  Stack Carry — must actually be winning
-    anchorWr: 0.5, // Anchor — must actually be losing (strictly below even)
-    goodKda: 3.0, //  KDA Player — genuinely strong KDA
-    badKda: 2.0, //   Liability — strictly below an even 2.0 KDA
-    manyDeaths: 7, // Int Andy — objectively high deaths/game
-    fewDeaths: 4, //  Cockroach — objectively durable
-    goodCspm: 6.5, // Farm King — strong farming
-    lowCspm: 5, //    Minion Hater — weak farming
-    goodVision: 40, //Warden — genuinely high vision
-    lowVision: 25, // Wardless — low vision
-    manyKills: 8, //  Bloodthirsty — objectively high kills/game
-    manyAssists: 10, //Team Player — objectively high assists/game
-  };
-
-  // Award a relative superlative: holder = the player at the extreme (max or min) of a
-  // metric, among players with enough games (optionally a stricter pool).
-  const rel = (
-    dir: "max" | "min",
-    f: (a: Agg) => number,
-    t: { key: string; label: string; tone: TagTone; priority: number; cluster: string; meaning: string; detail: (a: Agg) => string },
-    opts: { gate?: (a: Agg) => boolean; pool?: Agg[]; margin?: number } = {},
-  ) => {
-    if (!enough) return;
-    const pool = (opts.pool ?? elig).filter(opts.gate ?? (() => true));
-    if (!pool.length) return;
-    const ranked = [...pool].sort((a, b) => (dir === "max" ? f(b) - f(a) : f(a) - f(b)));
-    const holder = ranked[0]!;
-    // Distinctiveness: only award if the holder clearly beats the runner-up. If #2's value
-    // is ≤0 (e.g. nobody else got a single solo kill), any positive holder qualifies.
-    const second = ranked[1];
-    let lead = DOMINANT;
-    if (second) {
-      const hv = f(holder);
-      const sv = f(second);
-      const m = opts.margin ?? MARGIN;
-      const clear = dir === "max" ? hv >= sv * (1 + m) : sv <= 0 ? hv <= sv : hv <= sv * (1 - m);
-      if (!clear) return;
-      lead = relLead(dir, hv, sv);
-    }
-    add(holder.puuid, { key: t.key, label: t.label, tone: t.tone, priority: t.priority, cluster: t.cluster, lead, meaning: t.meaning, detail: t.detail(holder) });
-  };
-
-  // ---- Deaths / survival ----
-  // Int Andy only for objectively high deaths; Cockroach only for objectively low ones.
-  rel("max", (a) => a.avgDeaths, { key: "int", label: "Int Andy", tone: "shame", priority: 92, cluster: AX.survival, meaning: "Dies the most per game in the stack.", detail: (a) => `${a.avgDeaths.toFixed(1)} deaths/game` }, { gate: (a) => a.avgDeaths >= FLOOR.manyDeaths });
-  rel("min", (a) => a.avgDeaths, { key: "cockroach", label: "Cockroach", tone: "flex", priority: 74, cluster: AX.survival, meaning: "Dies the least per game — impossible to put down.", detail: (a) => `${a.avgDeaths.toFixed(1)} deaths/game` }, { gate: (a) => a.avgDeaths <= FLOOR.fewDeaths });
-
-  // ---- Kills / damage ----
-  rel("max", (a) => a.avgKills, { key: "bloodthirsty", label: "Bloodthirsty", tone: "flex", priority: 66, cluster: AX.combat, meaning: "Most kills per game in the stack.", detail: (a) => `${a.avgKills.toFixed(1)} kills/game` }, { gate: (a) => a.avgKills >= FLOOR.manyKills });
-  // Pacifist measures kills over NON-support games only (supports kill little by design, so
-  // counting their games would falsely brand a support) and requires a real non-support
-  // sample — a primary support is excluded entirely.
-  rel("min", (a) => a.nsKills, { key: "pacifist", label: "Pacifist", tone: "shame", priority: 58, cluster: AX.combat, meaning: "Fewest kills per game — a lover, not a fighter.", detail: (a) => `${a.nsKills.toFixed(1)} kills/game` }, { gate: (a) => a.csGames >= CS_MIN });
-  rel("max", (a) => a.avgDamage, { key: "glasscannon", label: "Glass Cannon", tone: "flex", priority: 68, cluster: AX.combat, meaning: "Deals the most damage to champions per game.", detail: (a) => `${num(a.avgDamage)} dmg/game` });
-  // Decoration uses NON-support damage only (supports deal little by design), gated on a real
-  // non-support sample so a support main is never branded the lowest-damage player.
-  rel("min", (a) => a.nsDamage, { key: "decoration", label: "Decoration", tone: "shame", priority: 64, cluster: AX.combat, meaning: "Least damage to champions — basically a ward with legs.", detail: (a) => `${num(a.nsDamage)} dmg/game` }, { gate: (a) => a.csGames >= CS_MIN });
-  rel("max", (a) => a.avgTank, { key: "punchingbag", label: "Punching Bag", tone: "neutral", priority: 56, cluster: AX.survival, meaning: "Eats the most damage per game — the frontline (or feeding).", detail: (a) => `${num(a.avgTank)} taken/game` });
-  rel("min", (a) => a.avgTank, { key: "backline", label: "Backline", tone: "neutral", priority: 48, cluster: AX.survival, meaning: "Takes the least damage — safely out of range at all times.", detail: (a) => `${num(a.avgTank)} taken/game` });
-
-  // ---- Win rate / streaks ----
-  // Carry only counts if they're actually winning; Anchor only if actually losing — a
-  // 50%+ record shouldn't be branded dead weight just for trailing the rest of the group.
-  rel("max", wr, { key: "carry", label: "Stack Carry", tone: "flex", priority: 76, cluster: AX.winrate, meaning: "Highest win rate in the group — the one carrying.", detail: (a) => `${pctStr(wr(a))} over ${a.games}g` }, { gate: (a) => wr(a) > FLOOR.carryWr });
-  rel("min", wr, { key: "anchor", label: "Anchor", tone: "shame", priority: 82, cluster: AX.winrate, meaning: "Lowest win rate in the group — the dead weight.", detail: (a) => `${pctStr(wr(a))} over ${a.games}g` }, { gate: (a) => wr(a) < FLOOR.anchorWr });
-  // Coinflip — closest to a perfect 50/50. "Lead" here = how much closer to 50% than #2.
-  {
-    const ranked = [...elig].sort((a, b) => Math.abs(wr(a) - 0.5) - Math.abs(wr(b) - 0.5));
-    const h = ranked[0];
-    if (enough && h) {
-      const lead = ranked[1] ? Math.min((Math.abs(wr(ranked[1]) - 0.5) - Math.abs(wr(h) - 0.5)) / 0.5, DOMINANT) : DOMINANT;
-      add(h.puuid, { key: "coinflip", label: "Coinflip", tone: "neutral", priority: 88, cluster: AX.winrate, lead, meaning: "Win rate closest to a perfect 50/50 — a walking coin toss.", detail: `${pctStr(wr(h))} over ${h.games}g` });
-    }
-  }
-  {
-    const ws = elig.map((a) => ({ a, s: winStreak.get(a.puuid) ?? 0 })).sort((x, y) => y.s - x.s);
-    const h = ws[0];
-    if (enough && h && h.s >= 4) {
-      const lead = relLead("max", h.s, ws[1]?.s ?? 0);
-      add(h.a.puuid, { key: "heater", label: "Heater", tone: "flex", priority: 72, cluster: AX.winrate, lead, meaning: "Longest win streak in the stack.", detail: `${h.s} wins in a row` });
-    }
-  }
-  {
-    const ls = elig.map((a) => ({ a, s: lossStreak.get(a.puuid) ?? 0 })).sort((x, y) => y.s - x.s);
-    const h = ls[0];
-    if (enough && h && h.s >= 4) {
-      const lead = relLead("max", h.s, ls[1]?.s ?? 0);
-      add(h.a.puuid, { key: "tilted", label: "Tilted", tone: "shame", priority: 84, cluster: AX.winrate, lead, meaning: "Longest losing streak in the stack — and kept queuing.", detail: `${h.s} losses in a row` });
-    }
-  }
-  {
-    // In Form — best winrate over the last 15 games (min 8 to qualify).
-    const pool = elig
-      .map((a) => ({ a, f: recentForm.get(a.puuid) }))
-      .filter((x) => x.f && x.f.games >= 8)
-      .map((x) => ({ a: x.a, wr: x.f!.wins / x.f!.games, n: x.f!.games }))
-      // "In Form" should mean actually hot — a winning recent record, not just the
-      // least-cold player in a slumping stack.
-      .filter((x) => x.wr >= 0.5)
-      .sort((x, y) => y.wr - x.wr || y.n - x.n);
-    const h = pool[0];
-    if (enough && h) {
-      const lead = relLead("max", h.wr, pool[1]?.wr ?? 0);
-      add(h.a.puuid, { key: "inform", label: "In Form", tone: "flex", priority: 83, cluster: AX.winrate, lead, meaning: "Hottest recent form — best win rate over the last 15 games.", detail: `${pctStr(h.wr)} over last ${h.n}` });
-    }
-  }
-
-  // ---- Farm / gold ----
-  // Farm King needs genuinely strong CS; Minion Hater needs genuinely weak CS. avgCspm is
-  // computed over NON-support games only (see the query) — supports aren't supposed to farm
-  // minions, so counting their support games would falsely brand them Minion Hater. CS_MIN
-  // games of non-support play are required so the average is a real sample (and a pure-support
-  // player, with zero non-support games, is excluded from both tags entirely).
-  rel("max", (a) => a.avgCspm, { key: "farm", label: "Farm King", tone: "flex", priority: 54, cluster: AX.econ, meaning: "Highest CS per minute — never misses a minion.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.csGames >= CS_MIN && a.avgCspm >= FLOOR.goodCspm });
-  rel("min", (a) => a.avgCspm, { key: "minionhater", label: "Minion Hater", tone: "shame", priority: 50, cluster: AX.econ, meaning: "Lowest CS per minute — farming is beneath them.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.csGames >= CS_MIN && a.avgCspm < FLOOR.lowCspm });
-  rel("max", (a) => a.avgGold, { key: "rich", label: "Gold Digger", tone: "neutral", priority: 44, cluster: AX.econ, meaning: "Earns the most gold per game.", detail: (a) => `${num(a.avgGold)} gold/game` });
-  // Broke uses NON-support gold only (supports run the lowest-income items by design), gated
-  // on a real non-support sample so a support main isn't branded the poorest.
-  rel("min", (a) => a.nsGold, { key: "broke", label: "Broke", tone: "shame", priority: 42, cluster: AX.econ, meaning: "Earns the least gold — perpetually behind.", detail: (a) => `${num(a.nsGold)} gold/game` }, { gate: (a) => a.csGames >= CS_MIN });
-
-  // ---- Vision / utility ----
-  // Vision is role-skewed (supports run far higher), so these floors keep Wardless off
-  // someone with decent vision and Warden off a stack where nobody really wards.
-  rel("min", (a) => a.avgVision, { key: "wardless", label: "Wardless", tone: "shame", priority: 70, cluster: AX.utility, meaning: "Lowest vision score — wards are someone else's problem.", detail: (a) => `${a.avgVision.toFixed(0)} vision avg` }, { gate: (a) => a.avgVision < FLOOR.lowVision });
-  rel("max", (a) => a.avgVision, { key: "warden", label: "Warden", tone: "flex", priority: 49, cluster: AX.utility, meaning: "Highest vision score — actually buys control wards.", detail: (a) => `${a.avgVision.toFixed(0)} vision avg` }, { gate: (a) => a.avgVision >= FLOOR.goodVision });
-  rel("max", (a) => a.avgAssists, { key: "teamplayer", label: "Team Player", tone: "flex", priority: 46, cluster: AX.utility, meaning: "Most assists per game — always in the fight for the team.", detail: (a) => `${a.avgAssists.toFixed(1)} assists/game` }, { gate: (a) => a.avgAssists >= FLOOR.manyAssists });
-  rel("min", (a) => a.avgAssists, { key: "lonewolf", label: "Lone Wolf", tone: "neutral", priority: 45, cluster: AX.utility, meaning: "Fewest assists — does its own thing.", detail: (a) => `${a.avgAssists.toFixed(1)} assists/game` });
-  rel("max", (a) => a.avgCc, { key: "ccbot", label: "CC Machine", tone: "flex", priority: 47, cluster: AX.utility, meaning: "Locks enemies down the most (crowd-control time).", detail: (a) => `${a.avgCc.toFixed(0)}s CC/game` }, { gate: (a) =>a.avgCc > 0 });
-  rel("max", (a) => a.healShield, { key: "medic", label: "Pocket Medic", tone: "flex", priority: 51, cluster: AX.utility, meaning: "Most healing + shielding poured into teammates.", detail: (a) => `${num(a.healShield)} healed/shielded` }, { gate: (a) =>a.healShield > 0 });
-
-  // ---- KDA ----
-  // KDA Player only if the best KDA is genuinely strong; Liability only if the worst is
-  // actually poor — a 2.1+ KDA is respectable and shouldn't be branded a liability.
-  rel("max", kda, { key: "kdaplayer", label: "KDA Player", tone: "neutral", priority: 55, cluster: AX.combat, meaning: "Best overall KDA — may or may not ever press a button.", detail: (a) => `${kda(a).toFixed(1)} KDA` }, { gate: (a) => kda(a) >= FLOOR.goodKda });
-  rel("min", kda, { key: "liability", label: "The Liability", tone: "shame", priority: 78, cluster: AX.combat, meaning: "Worst KDA in the stack.", detail: (a) => `${kda(a).toFixed(1)} KDA` }, { gate: (a) => kda(a) < FLOOR.badKda });
-
-  // ---- Activity / misc ----
-  rel("max", (a) => a.games, { key: "nolife", label: "No-Life", tone: "neutral", priority: 62, cluster: AX.activity, meaning: "Most games tracked — touch grass.", detail: (a) => `${a.games} games` });
-  rel("min", (a) => a.games, { key: "casual", label: "Casual", tone: "neutral", priority: 40, cluster: AX.activity, meaning: "Plays the least — a part-timer.", detail: (a) => `${a.games} games` });
-  rel("max", (a) => a.nightShare, { key: "nightowl", label: "Night Owl", tone: "shame", priority: 67, cluster: AX.activity, meaning: "Plays the most games after midnight. Sleep is a myth.", detail: (a) => `${pctStr(a.nightShare)} after midnight` }, { gate: (a) =>a.nightShare >= 0.25 });
-
-  // ---- "Fun" personality tags (neutral) — about HOW you play, not how well. ----
-  // Champion habits: widest pool vs a tiny comfort rotation. (A literal one-trick gets the
-  // OTP identity tag instead; Comfort Picks is for a small handful, not a single champ.)
   const poolSize = (a: Agg) => champByPlayer.get(a.puuid)?.length ?? 0;
-  rel("max", poolSize, { key: "variety", label: "Commitment Issues", tone: "neutral", priority: 61, cluster: AX.champpool, meaning: "Plays a different champion almost every game — no loyalty.", detail: (a) => `${poolSize(a)} champions` }, { gate: (a) => poolSize(a) >= 8 });
-  rel("min", poolSize, { key: "comfort", label: "Comfort Picks", tone: "neutral", priority: 60, cluster: AX.champpool, meaning: "Sticks to a tiny rotation of comfort champs.", detail: (a) => `${poolSize(a)} champions` }, { gate: (a) => poolSize(a) >= 2 && poolSize(a) <= 6 });
+  const champsOf = (a: Agg) => [...(champByPlayer.get(a.puuid) ?? [])].sort((x, y) => y.g - x.g);
 
-  // Game flow: do your games drag on or end fast? (avgDur is seconds.)
-  rel("max", (a) => a.avgDur, { key: "marathon", label: "Full 40", tone: "neutral", priority: 58, cluster: AX.gamelength, meaning: "Their games drag on — longest average game length in the stack.", detail: (a) => `${Math.round(a.avgDur / 60)} min avg` });
-  rel("min", (a) => a.avgDur, { key: "speedrun", label: "Speedrunner", tone: "neutral", priority: 57, cluster: AX.gamelength, meaning: "In and out — shortest average games in the stack.", detail: (a) => `${Math.round(a.avgDur / 60)} min avg` });
+  // One reading for a player on a tag's metric, plus the copy to show. `null` = the tag
+  // doesn't apply to this player (no sample), so they're left out of its distribution.
+  type Sample = { v: number; label?: string; key?: string; detail: string; meaning?: string };
+  interface Spec {
+    key: string;
+    label: string;
+    tone: TagTone;
+    meaning: string;
+    dir: 1 | -1; // +1 = high value earns the tag, -1 = low value earns it
+    priority: number; // tiebreak only — orders tags that score the same z
+    sample: (a: Agg) => Sample | null;
+  }
+  // Shorthand for a plain numeric tag: value + formatted detail.
+  const m = (v: number, detail: string): Sample => ({ v, detail });
 
-  // Consistency: same stat line every game vs boom-or-bust (std-dev of per-game KDA).
-  rel("max", (a) => a.kdaSd, { key: "wildcard", label: "Wildcard", tone: "neutral", priority: 60, cluster: AX.consistency, meaning: "Boom or bust — the biggest game-to-game swings in the stack.", detail: (a) => `±${a.kdaSd.toFixed(1)} KDA swing` }, { gate: (a) => a.kdaSd > 0 });
-  rel("min", (a) => a.kdaSd, { key: "reliable", label: "Mr. Reliable", tone: "neutral", priority: 59, cluster: AX.consistency, meaning: "Same stat line every game — utterly predictable, in a good way.", detail: (a) => `±${a.kdaSd.toFixed(1)} KDA swing` }, { gate: (a) => a.kdaSd > 0 });
+  const SPECS: Spec[] = [
+    // ---- Deaths / damage taken / dodging ----
+    { key: "int", label: "Int Andy", tone: "shame", dir: 1, priority: 92, meaning: "Dies the most per game in the stack.", sample: (a) => m(a.avgDeaths, `${a.avgDeaths.toFixed(1)} deaths/game`) },
+    { key: "cockroach", label: "Cockroach", tone: "flex", dir: -1, priority: 74, meaning: "Dies the least per game — impossible to put down.", sample: (a) => m(a.avgDeaths, `${a.avgDeaths.toFixed(1)} deaths/game`) },
+    { key: "punchingbag", label: "Punching Bag", tone: "neutral", dir: 1, priority: 56, meaning: "Eats the most damage per game — the frontline (or feeding).", sample: (a) => m(a.avgTank, `${num(a.avgTank)} taken/game`) },
+    { key: "backline", label: "Backline", tone: "neutral", dir: -1, priority: 48, meaning: "Takes the least damage — safely out of range at all times.", sample: (a) => m(a.avgTank, `${num(a.avgTank)} taken/game`) },
+    { key: "untouchable", label: "Untouchable", tone: "flex", dir: 1, priority: 57, meaning: "Dodges the most skillshots — slippery.", sample: (a) => m(a.dodged, `${a.dodged.toFixed(1)} dodged/game`) },
+    { key: "hitbox", label: "Walking Hitbox", tone: "shame", dir: -1, priority: 71, meaning: "Dodges the fewest skillshots — walks into everything.", sample: (a) => m(a.dodged, `${a.dodged.toFixed(1)} dodged/game`) },
 
-  // ---- Rare / meme achievements — independent (own cluster) so they don't dedup each other ----
-  rel("max", (a) => a.solos, { key: "solokiller", label: "Solo Killer", tone: "flex", priority: 52, cluster: "solokiller", meaning: "Most solo kills in the group — no help needed.", detail: (a) => `${a.solos} solo kills` }, { gate: (a) =>a.solos > 0 });
-  rel("max", (a) => a.steals, { key: "thief", label: "Objective Thief", tone: "flex", priority: 65, cluster: "thief", meaning: "Stole the most Barons/Dragons. Smite diff.", detail: (a) => `${a.steals} steals` }, { gate: (a) =>a.steals > 0 });
-  rel("max", (a) => a.maxSpree, { key: "spree", label: "Spree King", tone: "flex", priority: 43, cluster: "spree", meaning: "Longest single killing spree without dying.", detail: (a) => `${a.maxSpree}-kill spree` }, { gate: (a) =>a.maxSpree >= 8 });
-  rel("max", (a) => a.pentas, { key: "pentaking", label: "Pentakill King", tone: "flex", priority: 69, cluster: "pentaking", meaning: "Most pentakills in the group. ACE!", detail: (a) => `${a.pentas} penta${a.pentas > 1 ? "s" : ""}` }, { gate: (a) => a.pentas > 0 });
+    // ---- Kills / damage / KDA ----
+    { key: "bloodthirsty", label: "Bloodthirsty", tone: "flex", dir: 1, priority: 66, meaning: "Most kills per game in the stack.", sample: (a) => m(a.avgKills, `${a.avgKills.toFixed(1)} kills/game`) },
+    // Pacifist / Decoration use NON-support figures (supports kill/deal little by design); a
+    // primary support with no non-support sample is left out entirely.
+    { key: "pacifist", label: "Pacifist", tone: "shame", dir: -1, priority: 58, meaning: "Fewest kills per game — a lover, not a fighter.", sample: (a) => (a.csGames >= CS_MIN ? m(a.nsKills, `${a.nsKills.toFixed(1)} kills/game`) : null) },
+    { key: "glasscannon", label: "Glass Cannon", tone: "flex", dir: 1, priority: 68, meaning: "Deals the most damage to champions per game.", sample: (a) => m(a.avgDamage, `${num(a.avgDamage)} dmg/game`) },
+    { key: "decoration", label: "Decoration", tone: "shame", dir: -1, priority: 64, meaning: "Least damage to champions — basically a ward with legs.", sample: (a) => (a.csGames >= CS_MIN ? m(a.nsDamage, `${num(a.nsDamage)} dmg/game`) : null) },
+    { key: "kdaplayer", label: "KDA Player", tone: "neutral", dir: 1, priority: 55, meaning: "Best overall KDA — may or may not ever press a button.", sample: (a) => m(kda(a), `${kda(a).toFixed(1)} KDA`) },
+    { key: "liability", label: "The Liability", tone: "shame", dir: -1, priority: 78, meaning: "Worst KDA in the stack.", sample: (a) => m(kda(a), `${kda(a).toFixed(1)} KDA`) },
 
-  // ---- Challenge-derived (migration 003) ----
-  rel("max", (a) => a.dodged, { key: "untouchable", label: "Untouchable", tone: "flex", priority: 57, cluster: AX.survival, meaning: "Dodges the most skillshots — slippery.", detail: (a) => `${a.dodged.toFixed(1)} dodged/game` }, { gate: (a) => a.dodged > 0 });
-  rel("min", (a) => a.dodged, { key: "hitbox", label: "Walking Hitbox", tone: "shame", priority: 71, cluster: AX.survival, meaning: "Dodges the fewest skillshots — walks into everything.", detail: (a) => `${a.dodged.toFixed(1)} dodged/game` }, { gate: (a) => a.dodged > 0 });
-  rel("max", (a) => a.towerKills, { key: "towerdiver", label: "Tower Diver", tone: "flex", priority: 59, cluster: "towerdiver", meaning: "Most kills under the enemy turret — fearless (or stupid).", detail: (a) => `${a.towerKills} kills under tower` }, { gate: (a) => a.towerKills > 0 });
-  rel("max", (a) => a.fountain, { key: "fountain", label: "Fountain Diver", tone: "flex", priority: 67, cluster: "fountain", meaning: "Got takedowns in the enemy fountain. Peak disrespect.", detail: (a) => `${a.fountain} fountain takedowns` }, { gate: (a) => a.fountain > 0 });
-  // Junglers stealing smiteless is routine and boring — only count steals as a NON-jungler.
-  rel("max", (a) => a.smiteless, { key: "smiteless", label: "Smiteless Thief", tone: "flex", priority: 66, cluster: "smiteless", meaning: "Stole an epic monster without smite — and not even as the jungler.", detail: (a) => `${a.smiteless} steals off-role` }, { gate: (a) => a.smiteless > 0 });
-  rel("max", (a) => a.saves, { key: "guardian", label: "Guardian Angel", tone: "flex", priority: 53, cluster: AX.utility, meaning: "Saved teammates from certain death the most.", detail: (a) => `${a.saves} ally saves` }, { gate: (a) => a.saves > 0 });
+    // ---- Win rate / streaks / form ----
+    { key: "carry", label: "Stack Carry", tone: "flex", dir: 1, priority: 76, meaning: "Highest win rate in the group — the one carrying.", sample: (a) => m(wr(a), `${pctStr(wr(a))} over ${a.games}g`) },
+    { key: "anchor", label: "Anchor", tone: "shame", dir: -1, priority: 82, meaning: "Lowest win rate in the group — the dead weight.", sample: (a) => m(wr(a), `${pctStr(wr(a))} over ${a.games}g`) },
+    // Coinflip: closest to 50% = smallest |wr − 0.5|; negate so "high score" means closest.
+    { key: "coinflip", label: "Coinflip", tone: "neutral", dir: 1, priority: 88, meaning: "Win rate closest to a perfect 50/50 — a walking coin toss.", sample: (a) => m(-Math.abs(wr(a) - 0.5), `${pctStr(wr(a))} over ${a.games}g`) },
+    { key: "heater", label: "Heater", tone: "flex", dir: 1, priority: 72, meaning: "Longest win streak in the stack.", sample: (a) => { const s = winStreak.get(a.puuid) ?? 0; return m(s, `${s} wins in a row`); } },
+    { key: "tilted", label: "Tilted", tone: "shame", dir: 1, priority: 84, meaning: "Longest losing streak in the stack — and kept queuing.", sample: (a) => { const s = lossStreak.get(a.puuid) ?? 0; return m(s, `${s} losses in a row`); } },
+    { key: "inform", label: "In Form", tone: "flex", dir: 1, priority: 83, meaning: "Hottest recent form — best win rate over the last 15 games.", sample: (a) => { const f = recentForm.get(a.puuid); return f && f.games >= 8 ? m(f.wins / f.games, `${pctStr(f.wins / f.games)} over last ${f.games}`) : null; } },
 
-  // ---- Identity (per-player, not relative) ----
-  for (const a of aggs) {
-    if (a.games < MIN_GAMES) continue;
-    const champs = (champByPlayer.get(a.puuid) ?? []).sort((x, y) => y.g - x.g);
-    const top = champs[0];
-    if (top && top.g >= 10 && top.g / a.games >= 0.4) {
-      const name = championDisplayName(top.name);
-      add(a.puuid, { key: `otp:${top.name}`, label: `${name} OTP`, tone: "neutral", priority: 73, cluster: "otp", lead: DOMINANT, meaning: `One-tricks ${name} — plays it in a huge share of games.`, detail: `${Math.round((top.g / a.games) * 100)}% on ${name}` });
-    }
-    const cursed = champs.filter((c) => c.g >= 12 && c.w / c.g <= 0.42).sort((x, y) => x.w / x.g - y.w / y.g)[0];
-    if (cursed) {
-      const name = championDisplayName(cursed.name);
-      add(a.puuid, { key: `cursed:${cursed.name}`, label: `Cursed: ${name}`, tone: "shame", priority: 80, cluster: "cursed", lead: DOMINANT, meaning: `Keeps losing on ${name} but refuses to drop it.`, detail: `${Math.round((cursed.w / cursed.g) * 100)}% over ${cursed.g}g` });
+    // ---- Farm / gold ----
+    { key: "farm", label: "Farm King", tone: "flex", dir: 1, priority: 54, meaning: "Highest CS per minute — never misses a minion.", sample: (a) => (a.csGames >= CS_MIN ? m(a.avgCspm, `${a.avgCspm.toFixed(1)} CS/min`) : null) },
+    { key: "minionhater", label: "Minion Hater", tone: "shame", dir: -1, priority: 50, meaning: "Lowest CS per minute — farming is beneath them.", sample: (a) => (a.csGames >= CS_MIN ? m(a.avgCspm, `${a.avgCspm.toFixed(1)} CS/min`) : null) },
+    { key: "rich", label: "Gold Digger", tone: "neutral", dir: 1, priority: 44, meaning: "Earns the most gold per game.", sample: (a) => m(a.avgGold, `${num(a.avgGold)} gold/game`) },
+    { key: "broke", label: "Broke", tone: "shame", dir: -1, priority: 42, meaning: "Earns the least gold — perpetually behind.", sample: (a) => (a.csGames >= CS_MIN ? m(a.nsGold, `${num(a.nsGold)} gold/game`) : null) },
+
+    // ---- Vision / utility ----
+    { key: "warden", label: "Warden", tone: "flex", dir: 1, priority: 49, meaning: "Highest vision score — actually buys control wards.", sample: (a) => m(a.avgVision, `${a.avgVision.toFixed(0)} vision avg`) },
+    { key: "wardless", label: "Wardless", tone: "shame", dir: -1, priority: 70, meaning: "Lowest vision score — wards are someone else's problem.", sample: (a) => m(a.avgVision, `${a.avgVision.toFixed(0)} vision avg`) },
+    { key: "teamplayer", label: "Team Player", tone: "flex", dir: 1, priority: 46, meaning: "Most assists per game — always in the fight for the team.", sample: (a) => m(a.avgAssists, `${a.avgAssists.toFixed(1)} assists/game`) },
+    { key: "lonewolf", label: "Lone Wolf", tone: "neutral", dir: -1, priority: 45, meaning: "Fewest assists — does its own thing.", sample: (a) => m(a.avgAssists, `${a.avgAssists.toFixed(1)} assists/game`) },
+    { key: "ccbot", label: "CC Machine", tone: "flex", dir: 1, priority: 47, meaning: "Locks enemies down the most (crowd-control time).", sample: (a) => m(a.avgCc, `${a.avgCc.toFixed(0)}s CC/game`) },
+    { key: "medic", label: "Pocket Medic", tone: "flex", dir: 1, priority: 51, meaning: "Most healing + shielding poured into teammates.", sample: (a) => m(a.healShield, `${num(a.healShield)} healed/shielded`) },
+    { key: "guardian", label: "Guardian Angel", tone: "flex", dir: 1, priority: 53, meaning: "Saved teammates from certain death the most.", sample: (a) => m(a.saves, `${a.saves} ally saves`) },
+
+    // ---- Activity / playstyle ----
+    { key: "nolife", label: "No-Life", tone: "neutral", dir: 1, priority: 62, meaning: "Most games tracked — touch grass.", sample: (a) => m(a.games, `${a.games} games`) },
+    { key: "casual", label: "Casual", tone: "neutral", dir: -1, priority: 40, meaning: "Plays the least — a part-timer.", sample: (a) => m(a.games, `${a.games} games`) },
+    { key: "nightowl", label: "Night Owl", tone: "shame", dir: 1, priority: 67, meaning: "Plays the most games after midnight. Sleep is a myth.", sample: (a) => m(a.nightShare, `${pctStr(a.nightShare)} after midnight`) },
+    { key: "variety", label: "Commitment Issues", tone: "neutral", dir: 1, priority: 61, meaning: "Plays a different champion almost every game — no loyalty.", sample: (a) => m(poolSize(a), `${poolSize(a)} champions`) },
+    { key: "comfort", label: "Comfort Picks", tone: "neutral", dir: -1, priority: 60, meaning: "Sticks to a tiny rotation of comfort champs.", sample: (a) => m(poolSize(a), `${poolSize(a)} champions`) },
+    { key: "marathon", label: "Full 40", tone: "neutral", dir: 1, priority: 58, meaning: "Their games drag on — longest average game length in the stack.", sample: (a) => m(a.avgDur, `${Math.round(a.avgDur / 60)} min avg`) },
+    { key: "speedrun", label: "Speedrunner", tone: "neutral", dir: -1, priority: 57, meaning: "In and out — shortest average games in the stack.", sample: (a) => m(a.avgDur, `${Math.round(a.avgDur / 60)} min avg`) },
+    { key: "wildcard", label: "Wildcard", tone: "neutral", dir: 1, priority: 60, meaning: "Boom or bust — the biggest game-to-game swings in the stack.", sample: (a) => m(a.kdaSd, `±${a.kdaSd.toFixed(1)} KDA swing`) },
+    { key: "reliable", label: "Mr. Reliable", tone: "neutral", dir: -1, priority: 59, meaning: "Same stat line every game — utterly predictable, in a good way.", sample: (a) => m(a.kdaSd, `±${a.kdaSd.toFixed(1)} KDA swing`) },
+
+    // ---- Rare / meme achievements. Mostly counts, so the players who never did the thing
+    // sit at/below the stack mean and never clear MIN_Z — only the ones who did earn it. ----
+    { key: "solokiller", label: "Solo Killer", tone: "flex", dir: 1, priority: 52, meaning: "Most solo kills in the group — no help needed.", sample: (a) => m(a.solos, `${a.solos} solo kills`) },
+    { key: "thief", label: "Objective Thief", tone: "flex", dir: 1, priority: 65, meaning: "Stole the most Barons/Dragons. Smite diff.", sample: (a) => m(a.steals, `${a.steals} steals`) },
+    { key: "spree", label: "Spree King", tone: "flex", dir: 1, priority: 43, meaning: "Longest single killing spree without dying.", sample: (a) => m(a.maxSpree, `${a.maxSpree}-kill spree`) },
+    { key: "pentaking", label: "Pentakill King", tone: "flex", dir: 1, priority: 69, meaning: "Most pentakills in the group. ACE!", sample: (a) => m(a.pentas, `${a.pentas} penta${a.pentas === 1 ? "" : "s"}`) },
+    { key: "towerdiver", label: "Tower Diver", tone: "flex", dir: 1, priority: 59, meaning: "Most kills under the enemy turret — fearless (or stupid).", sample: (a) => m(a.towerKills, `${a.towerKills} kills under tower`) },
+    { key: "fountain", label: "Fountain Diver", tone: "flex", dir: 1, priority: 67, meaning: "Got takedowns in the enemy fountain. Peak disrespect.", sample: (a) => m(a.fountain, `${a.fountain} fountain takedowns`) },
+    { key: "smiteless", label: "Smiteless Thief", tone: "flex", dir: 1, priority: 66, meaning: "Stole an epic monster without smite — and not even as the jungler.", sample: (a) => m(a.smiteless, `${a.smiteless} steals off-role`) },
+
+    // ---- Identity (champion-anchored): metric = how concentrated / how cursed, with the
+    // champ riding along in the label & detail. Needs a meaningfully-played champ to apply. ----
+    {
+      key: "otp",
+      label: "OTP",
+      tone: "neutral",
+      dir: 1,
+      priority: 73,
+      meaning: "One-tricks a champion.",
+      sample: (a) => {
+        const top = champsOf(a)[0];
+        if (!top || top.g < 10) return null;
+        const name = championDisplayName(top.name);
+        const share = top.g / a.games;
+        return { v: share, key: `otp:${top.name}`, label: `${name} OTP`, detail: `${Math.round(share * 100)}% on ${name}`, meaning: `One-tricks ${name} — plays it in a huge share of games.` };
+      },
+    },
+    {
+      key: "cursed",
+      label: "Cursed",
+      tone: "shame",
+      dir: -1,
+      priority: 80,
+      meaning: "Keeps losing on a champ but won't drop it.",
+      sample: (a) => {
+        const worst = champsOf(a).filter((c) => c.g >= 12).sort((x, y) => x.w / x.g - y.w / y.g)[0];
+        if (!worst) return null;
+        const name = championDisplayName(worst.name);
+        const w = worst.w / worst.g;
+        return { v: w, key: `cursed:${worst.name}`, label: `Cursed: ${name}`, detail: `${Math.round(w * 100)}% over ${worst.g}g`, meaning: `Keeps losing on ${name} but refuses to drop it.` };
+      },
+    },
+  ];
+
+  // For each tag: gather samples across eligible players, standardise to z-scores, and award
+  // the tag to anyone whose directional z clears MIN_Z. The z-score is stored in `lead` (the
+  // selection signal the final cut sorts on).
+  for (const spec of SPECS) {
+    const taken = elig.map((a) => ({ a, s: spec.sample(a) })).filter((x): x is { a: Agg; s: Sample } => x.s !== null);
+    if (taken.length < 2) continue; // can't standardise a single point
+    const vals = taken.map((x) => x.s.v);
+    const mean = vals.reduce((sum, v) => sum + v, 0) / vals.length;
+    const sd = Math.sqrt(vals.reduce((sum, v) => sum + (v - mean) ** 2, 0) / vals.length);
+    if (sd === 0) continue; // everyone identical — no separation to measure
+    for (const { a, s } of taken) {
+      const score = (spec.dir * (s.v - mean)) / sd;
+      if (score <= MIN_Z) continue;
+      add(a.puuid, {
+        key: s.key ?? spec.key,
+        label: s.label ?? spec.label,
+        tone: spec.tone,
+        meaning: s.meaning ?? spec.meaning,
+        detail: s.detail,
+        priority: spec.priority,
+        cluster: spec.key,
+        lead: score,
+      });
     }
   }
 
-  // Collapse correlated near-synonyms: keep only each player's highest-priority tag per
-  // axis (combat/winrate/survival/econ/utility/activity). Rare/meme + identity tags use a
-  // unique cluster, so they survive this pass and only compete on the final priority cap.
-  // This is what stops a support main racking up 6 utility tags or the best player sweeping
-  // every fighting superlative — each profile ends up with a few DISTINCT signatures.
+  // Each player keeps their CAP_PER_PLAYER highest z-scores (priority breaks exact ties).
   for (const puuid of Object.keys(out)) {
-    const best = new Map<string, PlayerTag>();
-    for (const t of out[puuid]!) {
-      const prev = best.get(t.cluster);
-      // Within an axis, the tag a player most genuinely earned = the one they lead the
-      // stack by the widest margin (e.g. +40% on damage beats +8% on kills → Glass Cannon).
-      // Priority only breaks ties when two facets are equally dominant.
-      if (!prev || t.lead > prev.lead || (t.lead === prev.lead && t.priority > prev.priority)) best.set(t.cluster, t);
-    }
-    // Across axes, the final cut keeps the tags you've most EARNED — sorted by `lead`, i.e.
-    // how far you separate from the rest of the stack on that metric (and the absolute-floor
-    // gates already ensure each is genuinely above/below baseline, not just stack-relative).
-    // A +40%-on-damage Glass Cannon outranks a barely-ahead "fewest kills"; priority only
-    // breaks ties between equally dominant facets. Identity tags (OTP/Cursed) carry lead =
-    // DOMINANT, so a real one-trick still surfaces.
-    out[puuid] = [...best.values()]
-      .sort((x, y) => y.lead - x.lead || y.priority - x.priority)
-      .slice(0, CAP_PER_PLAYER);
+    out[puuid] = out[puuid]!.sort((x, y) => y.lead - x.lead || y.priority - x.priority).slice(0, CAP_PER_PLAYER);
   }
   return out;
 }
