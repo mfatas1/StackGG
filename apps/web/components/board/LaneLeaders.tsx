@@ -2,7 +2,7 @@ import type { CrewRoleSpread } from "@crewstats/stats";
 import { ProfileIcon, RoleIcon, ChampIcon } from "../kit/Avatar";
 import { Empty } from "../kit/Frame";
 import { PlayerLink, playerHref } from "../kit/links";
-import { pct } from "@/lib/format";
+import { pct, champName } from "@/lib/format";
 import Link from "next/link";
 
 const LANES: { key: string; label: string }[] = [
@@ -108,7 +108,7 @@ export function LaneLeaders({ rows, crewSlug }: { rows: CrewRoleSpread[]; crewSl
                     <div key={c.championName} className="notch-sm flex items-center gap-2 border border-line/40 bg-bg/40 px-2 py-1.5">
                       <ChampIcon name={c.championName} size={34} />
                       <div className="min-w-0">
-                        <div className="truncate text-xs font-medium">{c.championName}</div>
+                        <div className="truncate text-xs font-medium">{champName(c.championName)}</div>
                         <div className="font-mono text-[10px] text-ink-faint tnum">
                           {c.games}g · <span className={wrTone(w)}>{pct(w)}</span>
                         </div>

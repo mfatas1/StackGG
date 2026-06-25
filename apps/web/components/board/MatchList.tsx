@@ -7,7 +7,7 @@ import { ChampIcon, RoleIcon } from "../kit/Avatar";
 import { Empty } from "../kit/Frame";
 import { PlayerLink } from "../kit/links";
 import { MatchScoreboard } from "./MatchScoreboard";
-import { timeAgo, gameDuration, placementSuffix } from "@/lib/format";
+import { timeAgo, gameDuration, placementSuffix, champName } from "@/lib/format";
 import { mvpOf } from "@/lib/carry";
 
 const kdaRatio = (k: number, d: number, a: number) => (d === 0 ? Infinity : (k + a) / d);
@@ -59,7 +59,7 @@ function MatchRow({ m, basePath, crewSlug, mePuuid }: { m: MatchHistoryItem; bas
       {/* Collapsed row — click to expand */}
       <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 py-2 pl-3 pr-3 text-left" aria-expanded={open}>
         <span className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
-          <Link href={`${basePath}?champ=${m.championId}`} aria-label={`Filter to ${m.championName}`}>
+          <Link href={`${basePath}?champ=${m.championId}`} aria-label={`Filter to ${champName(m.championName)}`}>
             <ChampIcon name={m.championName} size={38} />
           </Link>
           {m.role && (
@@ -71,7 +71,7 @@ function MatchRow({ m, basePath, crewSlug, mePuuid }: { m: MatchHistoryItem; bas
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-sm">
-            <span className="truncate font-medium">{m.championName}</span>
+            <span className="truncate font-medium">{champName(m.championName)}</span>
             <span className={`text-2xs font-semibold ${remake ? "text-ink-faint" : good ? "text-win" : "text-loss"}`}>
               {remake ? "Remake" : arena ? placementSuffix(m.placement ?? 0) : m.win ? "Win" : "Loss"}
             </span>
@@ -90,7 +90,7 @@ function MatchRow({ m, basePath, crewSlug, mePuuid }: { m: MatchHistoryItem; bas
         {m.crewmates.length > 0 && (
           <div className="hidden -space-x-1.5 sm:flex">
             {m.crewmates.slice(0, 4).map((c) => (
-              <span key={c.puuid} className={`rounded-sm ring-1 ${c.sameSide ? "ring-win/50" : "ring-loss/50"}`} title={`${c.riotId} · ${c.championName}`}>
+              <span key={c.puuid} className={`rounded-sm ring-1 ${c.sameSide ? "ring-win/50" : "ring-loss/50"}`} title={`${c.riotId} · ${champName(c.championName)}`}>
                 <ChampIcon name={c.championName} size={18} />
               </span>
             ))}
@@ -139,7 +139,7 @@ function MatchRow({ m, basePath, crewSlug, mePuuid }: { m: MatchHistoryItem; bas
             href={`${basePath}?champ=${m.championId}`}
             className="mt-3 inline-flex items-center gap-1.5 text-2xs text-ink-faint transition-colors hover:text-ink"
           >
-            <Filter className="h-3 w-3" /> Only {m.championName}
+            <Filter className="h-3 w-3" /> Only {champName(m.championName)}
           </Link>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { query, type Queryable, QUEUES } from "@crewstats/shared";
+import { query, type Queryable, QUEUES, championDisplayName } from "@crewstats/shared";
 import { NOT_REMAKE_SQL } from "./util.js";
 
 /**
@@ -36,7 +36,7 @@ export async function getPlayerInsights(client: Queryable, puuid: string): Promi
   if (bestChamp && bestChamp.wr >= 0.55) {
     out.push({
       kind: "bestChamp",
-      headline: `Best pick: ${bestChamp.champion_name}`,
+      headline: `Best pick: ${championDisplayName(bestChamp.champion_name)}`,
       detail: `${P(bestChamp.wr)} over ${bestChamp.games} games.`,
       tone: "good",
       championName: bestChamp.champion_name,
@@ -46,7 +46,7 @@ export async function getPlayerInsights(client: Queryable, puuid: string): Promi
   if (worstChamp && worstChamp.wr <= 0.45 && worstChamp.champion_name !== bestChamp?.champion_name) {
     out.push({
       kind: "worstChamp",
-      headline: `Weakest pick: ${worstChamp.champion_name}`,
+      headline: `Weakest pick: ${championDisplayName(worstChamp.champion_name)}`,
       detail: `${P(worstChamp.wr)} over ${worstChamp.games} games.`,
       tone: "bad",
       championName: worstChamp.champion_name,

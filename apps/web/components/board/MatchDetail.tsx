@@ -4,7 +4,8 @@ import type { MatchDetailData, MatchPlayer, TeamSummary, MatchTimeline, GoldFram
 import { ChampIcon, RoleIcon } from "../kit/Avatar";
 import { PlayerLink } from "../kit/links";
 import { mvpOf } from "@/lib/carry";
-import { timeAgo, gameDuration, placementSuffix, itemIcon } from "@/lib/format";
+import { timeAgo, gameDuration, placementSuffix, itemIcon, champName, tierCrest, rankString } from "@/lib/format";
+import type { RankInfo } from "@crewstats/shared";
 
 const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${Math.round(n)}`);
 const kdaRatio = (k: number, d: number, a: number) => (d === 0 ? k + a : (k + a) / d);
@@ -26,12 +27,14 @@ export function MatchDetail({
   stack = [],
   me = [],
   timeline,
+  ranks = {},
 }: {
   data: MatchDetailData;
   tracked: string[];
   stack?: string[]; // viewer's stackmate puuids (signed in)
   me?: string[]; // viewer's own puuids (signed in)
   timeline?: MatchTimeline;
+  ranks?: Record<string, RankInfo | null>; // solo-queue rank per lobby puuid
 }) {
   const trackedSet = new Set(tracked);
   const meSet = new Set(me);
@@ -57,7 +60,7 @@ export function MatchDetail({
       <Header data={data} />
       {timeline && timeline.gold.length > 1 && <GoldGraph gold={timeline.gold} />}
       {arena ? (
-        <ArenaBoard data={data} mins={mins} maxDmg={maxDmg} rel={relationOf} items={timeline?.itemsByParticipant} />
+        <ArenaBoard data={data} mins={mins} maxDmg={maxDmg} rel={relationOf} items={timeline?.itemsByParticipant} ranks={ranks} />
       ) : (
         <div className="space-y-3">
           {data.teams.map((team) => (
@@ -73,6 +76,7 @@ export function MatchDetail({
               dragons={timeline?.dragonsByTeam[team.teamId]}
               objectives={timeline?.objectivesByTeam[team.teamId]}
               items={timeline?.itemsByParticipant}
+              ranks={ranks}
             />
           ))}
         </div>
@@ -178,6 +182,7 @@ function TeamBlock({
   dragons,
   objectives,
   items,
+  ranks,
 }: {
   team: TeamSummary;
   roster: MatchPlayer[];
@@ -189,6 +194,7 @@ function TeamBlock({
   dragons?: string[];
   objectives?: TeamObjectives;
   items?: Record<number, number[]>;
+  ranks?: Record<string, RankInfo | null>;
 }) {
   const mvpPuuid = mvpOf(roster)?.puuid;
   const teamTone = team.teamId === 100 ? "text-primary" : "text-loss";
@@ -251,10 +257,26 @@ function TeamBlock({
             mvp={p.puuid === mvpPuuid}
             relation={rel(p)}
             items={items?.[p.participantId]}
+            rank={ranks?.[p.puuid]}
           />
         ))}
       </div>
     </div>
+  );
+}
+
+/** Compact solo-queue rank: tier crest + tier/division, full detail on hover. Null when unranked. */
+function RankChip({ rank }: { rank?: RankInfo | null }) {
+  if (!rank) return null;
+  const crest = tierCrest(rank.tier);
+  const tier = rank.tier.charAt(0) + rank.tier.slice(1).toLowerCase();
+  const apex = ["MASTER", "GRANDMASTER", "CHALLENGER"].includes(rank.tier.toUpperCase());
+  return (
+    <span className="inline-flex shrink-0 items-center gap-0.5 text-ink-faint" title={`Ranked Solo · ${rankString(rank)}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {crest && <img src={crest} alt="" width={12} height={12} className="opacity-90" />}
+      <span>{apex ? tier : `${tier} ${rank.rank}`}</span>
+    </span>
   );
 }
 
@@ -267,6 +289,7 @@ function PlayerRow({
   mvp,
   relation,
   items,
+  rank,
 }: {
   p: MatchPlayer;
   region: string;
@@ -276,6 +299,7 @@ function PlayerRow({
   mvp: boolean;
   relation: Relation;
   items?: number[];
+  rank?: RankInfo | null;
 }) {
   const ratio = kdaRatio(p.kills, p.deaths, p.assists);
   const csPerMin = mins > 0 ? (p.cs / mins).toFixed(1) : "0";
@@ -329,7 +353,8 @@ function PlayerRow({
             ) : null}
           </div>
           <span className="flex items-center gap-1 truncate text-2xs text-ink-faint">
-            {p.championName}
+            {champName(p.championName)}
+            <RankChip rank={rank} />
             {mvp && <span className="inline-flex items-center gap-0.5 text-gold"><Crown className="h-3 w-3" /> MVP</span>}
           </span>
         </div>
@@ -436,12 +461,14 @@ function ArenaBoard({
   maxDmg,
   rel,
   items,
+  ranks,
 }: {
   data: MatchDetailData;
   mins: number;
   maxDmg: number;
   rel: (p: MatchPlayer) => Relation;
   items?: Record<number, number[]>;
+  ranks?: Record<string, RankInfo | null>;
 }) {
   const subteams = [...new Set(data.players.map((p) => p.subteamId))].sort((a, b) => {
     const pa = data.players.find((p) => p.subteamId === a)?.placement ?? 9;
@@ -460,7 +487,7 @@ function ArenaBoard({
             </div>
             <div className="divide-y divide-line/40">
               {roster.map((p) => (
-                <PlayerRow key={p.puuid} p={p} region={data.region} mins={mins} maxDmg={maxDmg} maxTaken={maxDmg} mvp={false} relation={rel(p)} items={items?.[p.participantId]} />
+                <PlayerRow key={p.puuid} p={p} region={data.region} mins={mins} maxDmg={maxDmg} maxTaken={maxDmg} mvp={false} relation={rel(p)} items={items?.[p.participantId]} rank={ranks?.[p.puuid]} />
               ))}
             </div>
           </div>

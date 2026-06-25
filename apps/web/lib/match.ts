@@ -1,4 +1,5 @@
 import { getPool, getRiotClient, query } from "@crewstats/shared";
+import type { RankInfo } from "@crewstats/shared";
 import type { CarryStats } from "@/lib/carry";
 
 /**
@@ -238,6 +239,74 @@ export async function getMatchDetail(matchId: string, opts: { preferLive?: boole
     }
   }
   return null;
+}
+
+// ---- Solo-queue rank for every player in a lobby (in-depth view) ----
+
+const rankCache = new Map<string, { at: number; rank: RankInfo | null }>();
+const RANK_TTL = 1000 * 60 * 60; // 1h — ranks move slowly; keeps repeat views off the Riot API.
+
+/**
+ * Ranked-solo tier for each lobby puuid, keyed by puuid. Known accounts (crew members /
+ * anyone we've ingested) use the rank already stored on `riot_accounts` — no API call.
+ * Strangers in the lobby are looked up live via league-v4 by-puuid (one cached call each).
+ * Best-effort: a player resolves to null when unranked or when the lookup fails (e.g. an
+ * expired key), so the caller can simply omit the crest.
+ *
+ * Only meaningful when the match was fetched live (current-key puuids) — which the in-depth
+ * page always does (`preferLive`). Never call this from the cheap inline scoreboard path.
+ */
+export async function getLobbySoloRanks(puuids: string[], platform: string): Promise<Record<string, RankInfo | null>> {
+  const out: Record<string, RankInfo | null> = {};
+  const now = Date.now();
+  const misses: string[] = [];
+  for (const puuid of puuids) {
+    const hit = rankCache.get(puuid);
+    if (hit && now - hit.at < RANK_TTL) out[puuid] = hit.rank;
+    else misses.push(puuid);
+  }
+  if (misses.length === 0) return out;
+
+  // 1. Anyone we already track: trust the stored rank (refreshed on poll) — no Riot call.
+  const stored = new Map<string, RankInfo | null>();
+  try {
+    const rows = await query<{ puuid: string; rank_solo: RankInfo | null }>(
+      `SELECT puuid, rank_solo FROM riot_accounts WHERE puuid = ANY($1)`,
+      [misses],
+      getPool(),
+    );
+    for (const r of rows) stored.set(r.puuid, r.rank_solo);
+  } catch {
+    // DB hiccup — fall through to live lookups for everyone.
+  }
+
+  const live: string[] = [];
+  for (const puuid of misses) {
+    if (stored.has(puuid)) {
+      const rank = stored.get(puuid) ?? null;
+      out[puuid] = rank;
+      rankCache.set(puuid, { at: now, rank });
+    } else {
+      live.push(puuid);
+    }
+  }
+
+  // 2. Strangers: league-v4 by-puuid, in parallel, failures degrade to null.
+  if (live.length) {
+    const client = getRiotClient();
+    const results = await Promise.allSettled(live.map((p) => client.getLeagueEntriesByPuuid(p, platform)));
+    results.forEach((res, i) => {
+      const puuid = live[i]!;
+      let rank: RankInfo | null = null;
+      if (res.status === "fulfilled") {
+        const solo = res.value.find((e) => e.queueType === "RANKED_SOLO_5x5");
+        if (solo) rank = { tier: solo.tier, rank: solo.rank, lp: solo.leaguePoints, wins: solo.wins, losses: solo.losses };
+      }
+      out[puuid] = rank;
+      rankCache.set(puuid, { at: now, rank });
+    });
+  }
+  return out;
 }
 
 // monsterSubType (timeline) -> the in-game elemental drake name.

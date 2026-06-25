@@ -5,7 +5,7 @@ import type { CrewRoleSpread } from "@crewstats/stats";
 import { ProfileIcon, RoleIcon, ChampIcon } from "../kit/Avatar";
 import { PlayerLink } from "../kit/links";
 import { Empty } from "../kit/Frame";
-import { pct } from "@/lib/format";
+import { pct, champName } from "@/lib/format";
 
 const LANES = [
   { key: "TOP", label: "Top" },
@@ -117,7 +117,7 @@ export function RoleMatrix({ rows, crewSlug, fill }: { rows: CrewRoleSpread[]; c
                     return (
                       <li key={c.championName} className="flex items-center gap-2">
                         <ChampIcon name={c.championName} size={20} />
-                        <span className="flex-1 whitespace-nowrap text-xs font-medium">{c.championName}</span>
+                        <span className="flex-1 whitespace-nowrap text-xs font-medium">{champName(c.championName)}</span>
                         <span className="font-mono text-2xs text-ink-faint tnum">{c.games}g</span>
                         <span className={`w-9 text-right font-mono text-2xs tnum ${cwr != null && cwr >= 0.5 ? "text-win" : "text-loss"}`}>{pct(cwr)}</span>
                       </li>
