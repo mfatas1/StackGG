@@ -34,9 +34,11 @@ const CS_MIN = 5;
 // Each player shows at most this many tags — their highest-z-score ones.
 const CAP_PER_PLAYER = 5;
 // A tag is only awarded if the player is at least this many standard deviations onto the
-// favorable side of the stack (0 = anyone above/below the mean qualifies). Raise it to make
-// tags rarer / more "earned"; lower bound is the single knob for the whole system.
-const MIN_Z = 0;
+// favorable side of the stack. Tuned so a tag is held by at most ~2 players (only genuine
+// outliers clear it) and most players land at 3–5 tags. This is the single knob for the
+// whole system: raise it for rarer tags, lower it for more. (Players who don't clear it on
+// anything still keep their single highest-z tag, so no profile is ever blank.)
+const MIN_Z = 1.2;
 
 interface Agg {
   puuid: string;
@@ -77,8 +79,14 @@ const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec %
 const pctStr = (x: number) => `${Math.round(x * 100)}%`;
 const num = (n: number) => Math.round(n).toLocaleString("en-US");
 
-export async function getCrewTags(client: Queryable, puuids: string[]): Promise<Record<string, PlayerTag[]>> {
+export async function getCrewTags(
+  client: Queryable,
+  puuids: string[],
+  opts: { minZ?: number; cap?: number } = {},
+): Promise<Record<string, PlayerTag[]>> {
   if (puuids.length === 0) return {};
+  const minZ = opts.minZ ?? MIN_Z;
+  const cap = opts.cap ?? CAP_PER_PLAYER;
 
   const rows = await query<Record<string, string>>(
     `SELECT mp.puuid,
@@ -339,7 +347,7 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
     if (sd === 0) continue; // everyone identical — no separation to measure
     for (const { a, s } of taken) {
       const score = (spec.dir * (s.v - mean)) / sd;
-      if (score <= MIN_Z) continue;
+      if (score <= 0) continue; // must at least be on the tag's favourable side of the mean
       add(a.puuid, {
         key: s.key ?? spec.key,
         label: s.label ?? spec.label,
@@ -353,9 +361,12 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
     }
   }
 
-  // Each player keeps their CAP_PER_PLAYER highest z-scores (priority breaks exact ties).
+  // Each player keeps their tags that clear minZ (genuine outliers), up to `cap`. If they
+  // clear it on nothing, they still keep their single highest-z tag so no profile is blank.
   for (const puuid of Object.keys(out)) {
-    out[puuid] = out[puuid]!.sort((x, y) => y.lead - x.lead || y.priority - x.priority).slice(0, CAP_PER_PLAYER);
+    const sorted = out[puuid]!.sort((x, y) => y.lead - x.lead || y.priority - x.priority);
+    const kept = sorted.filter((t) => t.lead >= minZ).slice(0, cap);
+    out[puuid] = kept.length ? kept : sorted.slice(0, 1);
   }
   return out;
 }
