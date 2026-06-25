@@ -87,6 +87,8 @@ interface Agg {
   avgTank: number;
   avgDamage: number;
   avgGold: number;
+  nsDamage: number; // avg damage over NON-support games (supports deal little by design)
+  nsGold: number; //   avg gold over NON-support games (supports earn little by design)
   avgCc: number;
   maxSpree: number;
   pentas: number;
@@ -120,6 +122,8 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
        avg(mp.cs::float / GREATEST(m.game_duration, 1) * 60) FILTER (WHERE mp.role IS DISTINCT FROM 'UTILITY') AS avg_cspm,
        count(*) FILTER (WHERE mp.role IS DISTINCT FROM 'UTILITY') AS cs_games,
        avg(mp.damage_taken) AS avg_tank, avg(mp.damage) AS avg_damage, avg(mp.gold) AS avg_gold, avg(mp.cc_time) AS avg_cc,
+       avg(mp.damage) FILTER (WHERE mp.role IS DISTINCT FROM 'UTILITY') AS avg_damage_ns,
+       avg(mp.gold) FILTER (WHERE mp.role IS DISTINCT FROM 'UTILITY') AS avg_gold_ns,
        max(mp.killing_spree) AS max_spree, sum(mp.pentakills) AS pentas, sum(mp.solo_kills) AS solos,
        sum(mp.objectives_stolen) AS steals,
        sum(COALESCE(mp.heal_teammates,0) + COALESCE(mp.shield_teammates,0)) AS heal_shield,
@@ -152,6 +156,8 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
     avgTank: Number(r.avg_tank) || 0,
     avgDamage: Number(r.avg_damage) || 0,
     avgGold: Number(r.avg_gold) || 0,
+    nsDamage: Number(r.avg_damage_ns) || 0,
+    nsGold: Number(r.avg_gold_ns) || 0,
     avgCc: Number(r.avg_cc) || 0,
     maxSpree: Number(r.max_spree) || 0,
     pentas: Number(r.pentas) || 0,
@@ -300,7 +306,9 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   // sample — a primary support is excluded entirely.
   rel("min", (a) => a.nsKills, { key: "pacifist", label: "Pacifist", tone: "shame", priority: 58, cluster: AX.combat, meaning: "Fewest kills per game — a lover, not a fighter.", detail: (a) => `${a.nsKills.toFixed(1)} kills/game` }, { gate: (a) => a.csGames >= CS_MIN });
   rel("max", (a) => a.avgDamage, { key: "glasscannon", label: "Glass Cannon", tone: "flex", priority: 68, cluster: AX.combat, meaning: "Deals the most damage to champions per game.", detail: (a) => `${num(a.avgDamage)} dmg/game` });
-  rel("min", (a) => a.avgDamage, { key: "decoration", label: "Decoration", tone: "shame", priority: 64, cluster: AX.combat, meaning: "Least damage to champions — basically a ward with legs.", detail: (a) => `${num(a.avgDamage)} dmg/game` });
+  // Decoration uses NON-support damage only (supports deal little by design), gated on a real
+  // non-support sample so a support main is never branded the lowest-damage player.
+  rel("min", (a) => a.nsDamage, { key: "decoration", label: "Decoration", tone: "shame", priority: 64, cluster: AX.combat, meaning: "Least damage to champions — basically a ward with legs.", detail: (a) => `${num(a.nsDamage)} dmg/game` }, { gate: (a) => a.csGames >= CS_MIN });
   rel("max", (a) => a.avgTank, { key: "punchingbag", label: "Punching Bag", tone: "neutral", priority: 56, cluster: AX.survival, meaning: "Eats the most damage per game — the frontline (or feeding).", detail: (a) => `${num(a.avgTank)} taken/game` });
   rel("min", (a) => a.avgTank, { key: "backline", label: "Backline", tone: "neutral", priority: 48, cluster: AX.survival, meaning: "Takes the least damage — safely out of range at all times.", detail: (a) => `${num(a.avgTank)} taken/game` });
 
@@ -360,7 +368,9 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   rel("max", (a) => a.avgCspm, { key: "farm", label: "Farm King", tone: "flex", priority: 54, cluster: AX.econ, meaning: "Highest CS per minute — never misses a minion.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.csGames >= CS_MIN && a.avgCspm >= FLOOR.goodCspm });
   rel("min", (a) => a.avgCspm, { key: "minionhater", label: "Minion Hater", tone: "shame", priority: 50, cluster: AX.econ, meaning: "Lowest CS per minute — farming is beneath them.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.csGames >= CS_MIN && a.avgCspm < FLOOR.lowCspm });
   rel("max", (a) => a.avgGold, { key: "rich", label: "Gold Digger", tone: "neutral", priority: 44, cluster: AX.econ, meaning: "Earns the most gold per game.", detail: (a) => `${num(a.avgGold)} gold/game` });
-  rel("min", (a) => a.avgGold, { key: "broke", label: "Broke", tone: "shame", priority: 42, cluster: AX.econ, meaning: "Earns the least gold — perpetually behind.", detail: (a) => `${num(a.avgGold)} gold/game` });
+  // Broke uses NON-support gold only (supports run the lowest-income items by design), gated
+  // on a real non-support sample so a support main isn't branded the poorest.
+  rel("min", (a) => a.nsGold, { key: "broke", label: "Broke", tone: "shame", priority: 42, cluster: AX.econ, meaning: "Earns the least gold — perpetually behind.", detail: (a) => `${num(a.nsGold)} gold/game` }, { gate: (a) => a.csGames >= CS_MIN });
 
   // ---- Vision / utility ----
   // Vision is role-skewed (supports run far higher), so these floors keep Wardless off
