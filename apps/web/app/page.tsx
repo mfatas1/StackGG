@@ -108,7 +108,7 @@ export default function Landing() {
         </Reveal>
         <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-6">
           <Reveal className="sm:col-span-4" delay={0}>
-            <Proof big icon={<Swords className="h-5 w-5" />} title="Who's actually the best among us" body="A live leaderboard across Ranked, Flex, ARAM and Arena — ranked relative to the stack, with form, 7-day winrate, and how far each of you sits above or below the stack average. Your standing in this group, not the world." />
+            <Proof big icon={<Swords className="h-5 w-5" />} title="Who's actually the best among us" body="A live leaderboard across Ranked, Flex, ARAM and Arena — ranked relative to the stack, with recent form and per-player tags. Your standing in this group, not the world." />
           </Reveal>
           <Reveal className="sm:col-span-2" delay={80}>
             <Proof icon={<Users className="h-5 w-5" />} title="Which duo is cracked" body="Winrate together vs. apart for every pair, with honest sample sizes." />
@@ -209,7 +209,6 @@ function DemoLadder() {
                 <Gauge value={r.wr} />
               </div>
               <span className="w-10 text-right font-mono text-sm tnum">{Math.round(r.wr * 100)}%</span>
-              <span className={`w-12 text-right font-mono text-2xs ${r.up ? "text-win" : "text-loss"}`}>{r.vs}</span>
             </div>
           </div>
         ))}
