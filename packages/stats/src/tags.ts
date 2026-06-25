@@ -70,9 +70,6 @@ const AX = {
   gamelength: "gamelength", // your games run long ↔ short
   consistency: "consistency", // boom-or-bust ↔ same stat line every game
 } as const;
-// The shared stat axes. Any tag whose cluster ISN'T one of these is a rare/identity
-// "special" tag (its own unique cluster) — promoted ahead of generic superlatives in the cut.
-const AX_SET: Set<string> = new Set(Object.values(AX));
 
 interface Agg {
   puuid: string;
@@ -456,15 +453,14 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
       // Priority only breaks ties when two facets are equally dominant.
       if (!prev || t.lead > prev.lead || (t.lead === prev.lead && t.priority > prev.priority)) best.set(t.cluster, t);
     }
-    // Across axes, the final cut keeps the most NOTABLE signatures. SPECIAL tags — the rare
-    // "you did a cool thing" badges and identity tags (Pentakill King, Smiteless Thief,
-    // Objective Thief, Fountain/Tower Diver, Solo Killer, Spree King, OTP, Cursed) — always
-    // rank ahead of the generic relative superlatives, so they're never crowded out of the
-    // CAP by an Int Andy / Glass Cannon. They're identifiable as any tag NOT on a shared
-    // stat axis (AX.*). Within each group we then order by priority (most notable first).
-    const isSpecial = (t: PlayerTag) => !AX_SET.has(t.cluster);
+    // Across axes, the final cut keeps the tags you've most EARNED — sorted by `lead`, i.e.
+    // how far you separate from the rest of the stack on that metric (and the absolute-floor
+    // gates already ensure each is genuinely above/below baseline, not just stack-relative).
+    // A +40%-on-damage Glass Cannon outranks a barely-ahead "fewest kills"; priority only
+    // breaks ties between equally dominant facets. Identity tags (OTP/Cursed) carry lead =
+    // DOMINANT, so a real one-trick still surfaces.
     out[puuid] = [...best.values()]
-      .sort((x, y) => Number(isSpecial(y)) - Number(isSpecial(x)) || y.priority - x.priority)
+      .sort((x, y) => y.lead - x.lead || y.priority - x.priority)
       .slice(0, CAP_PER_PLAYER);
   }
   return out;
