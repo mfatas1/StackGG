@@ -1,4 +1,4 @@
-import { query, type Queryable, QUEUES, QUEUE_LABEL } from "@crewstats/shared";
+import { query, type Queryable, QUEUES, QUEUE_LABEL, championDisplayName } from "@crewstats/shared";
 import type { Award, AwardEntry, AwardCategory, RolePlacement, PlayerIdentity } from "@crewstats/shared";
 import { winrate, NOT_REMAKE_SQL } from "./util.js";
 import { getIdentity } from "./modes.js";
@@ -172,7 +172,7 @@ export async function getCrewAwards(client: Queryable, puuids: string[]): Promis
 
   const kda = (r: TopRow) => `${r.kills}/${r.deaths}/${r.assists}`;
   const q = (r: TopRow) => QUEUE_LABEL[r.queue_id] ?? "Game";
-  const ctx = (r: TopRow) => `${r.champion_name} · ${kda(r)} · ${q(r)}`;
+  const ctx = (r: TopRow) => `${championDisplayName(r.champion_name)} · ${kda(r)} · ${q(r)}`;
   const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
   const num = (n: number) => Math.round(n).toLocaleString("en-US");
 

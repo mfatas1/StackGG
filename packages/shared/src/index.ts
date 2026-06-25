@@ -10,3 +10,4 @@ export * from "./riot/regions.js";
 export * from "./riot/types.js";
 export * from "./riot/client.js";
 export * from "./carry.js";
+export * from "./champions.js";

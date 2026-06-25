@@ -1,6 +1,6 @@
 import type { FilteredStats } from "@crewstats/stats";
 import { ChampIcon } from "../kit/Avatar";
-import { pct } from "@/lib/format";
+import { pct, champName as displayChampName } from "@/lib/format";
 
 const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${Math.round(n)}`);
 
@@ -13,7 +13,7 @@ export function FilteredSummary({ stats, champName, label }: { stats: FilteredSt
   if (stats.games === 0) {
     return (
       <div className="notch notch-sm mb-3 border border-line/60 bg-surface-2/40 px-3 py-2 text-sm text-ink-faint">
-        No games for {champName ?? label.toLowerCase()} yet.
+        No games for {champName ? displayChampName(champName) : label.toLowerCase()} yet.
       </div>
     );
   }
@@ -24,7 +24,7 @@ export function FilteredSummary({ stats, champName, label }: { stats: FilteredSt
       <div className="flex items-center gap-2.5">
         {champName && <ChampIcon name={champName} size={32} />}
         <div className="leading-tight">
-          <div className="text-sm font-semibold">{champName ?? label}</div>
+          <div className="text-sm font-semibold">{champName ? displayChampName(champName) : label}</div>
           {champName && <div className="text-2xs text-ink-faint">{label}</div>}
         </div>
       </div>

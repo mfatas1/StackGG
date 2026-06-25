@@ -1,4 +1,4 @@
-import { query, type Queryable, QUEUES } from "@crewstats/shared";
+import { query, type Queryable, QUEUES, championDisplayName } from "@crewstats/shared";
 
 /**
  * Porofessor-style per-player "tags" shown inline on the leaderboard. These are almost
@@ -34,6 +34,9 @@ export interface PlayerTag {
 
 const SR = `(${QUEUES.RANKED_SOLO}, ${QUEUES.RANKED_FLEX})`;
 const MIN_GAMES = 10;
+// Minimum NON-support games before the CS-based farm tags (Farm King / Minion Hater) apply,
+// so the CS/min average is a real sample and primary supports are excluded from them.
+const CS_MIN = 5;
 // After axis-dedup, show at most this many tags per player — a tight, curated set beats a
 // wall of correlated superlatives. With dedup, 3 distinct tags is plenty.
 const CAP_PER_PLAYER = 5;
@@ -78,7 +81,8 @@ interface Agg {
   avgDead: number;
   avgLife: number;
   avgVision: number;
-  avgCspm: number;
+  avgCspm: number; // CS/min over NON-support games only (supports don't farm by design)
+  csGames: number; // count of those non-support games — sample size for the farm tags
   avgTank: number;
   avgDamage: number;
   avgGold: number;
@@ -111,7 +115,8 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
        count(*) AS games, count(*) FILTER (WHERE mp.win) AS wins,
        avg(mp.kills) AS avg_kills, avg(mp.deaths) AS avg_deaths, avg(mp.assists) AS avg_assists,
        avg(mp.time_dead) AS avg_dead, avg(mp.longest_life) AS avg_life, avg(mp.vision_score) AS avg_vision,
-       avg(mp.cs::float / GREATEST(m.game_duration, 1) * 60) AS avg_cspm,
+       avg(mp.cs::float / GREATEST(m.game_duration, 1) * 60) FILTER (WHERE mp.role IS DISTINCT FROM 'UTILITY') AS avg_cspm,
+       count(*) FILTER (WHERE mp.role IS DISTINCT FROM 'UTILITY') AS cs_games,
        avg(mp.damage_taken) AS avg_tank, avg(mp.damage) AS avg_damage, avg(mp.gold) AS avg_gold, avg(mp.cc_time) AS avg_cc,
        max(mp.killing_spree) AS max_spree, sum(mp.pentakills) AS pentas, sum(mp.solo_kills) AS solos,
        sum(mp.objectives_stolen) AS steals,
@@ -139,7 +144,8 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
     avgDead: Number(r.avg_dead) || 0,
     avgLife: Number(r.avg_life) || 0,
     avgVision: Number(r.avg_vision),
-    avgCspm: Number(r.avg_cspm),
+    avgCspm: Number(r.avg_cspm) || 0,
+    csGames: Number(r.cs_games) || 0,
     avgTank: Number(r.avg_tank) || 0,
     avgDamage: Number(r.avg_damage) || 0,
     avgGold: Number(r.avg_gold) || 0,
@@ -340,10 +346,13 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   }
 
   // ---- Farm / gold ----
-  // Farm King needs genuinely strong CS; Minion Hater needs genuinely weak CS. (Supports
-  // farm little by design, so this still mostly lands on non-supports — see note below.)
-  rel("max", (a) => a.avgCspm, { key: "farm", label: "Farm King", tone: "flex", priority: 54, cluster: AX.econ, meaning: "Highest CS per minute — never misses a minion.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.avgCspm >= FLOOR.goodCspm });
-  rel("min", (a) => a.avgCspm, { key: "minionhater", label: "Minion Hater", tone: "shame", priority: 50, cluster: AX.econ, meaning: "Lowest CS per minute — farming is beneath them.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.avgCspm < FLOOR.lowCspm });
+  // Farm King needs genuinely strong CS; Minion Hater needs genuinely weak CS. avgCspm is
+  // computed over NON-support games only (see the query) — supports aren't supposed to farm
+  // minions, so counting their support games would falsely brand them Minion Hater. CS_MIN
+  // games of non-support play are required so the average is a real sample (and a pure-support
+  // player, with zero non-support games, is excluded from both tags entirely).
+  rel("max", (a) => a.avgCspm, { key: "farm", label: "Farm King", tone: "flex", priority: 54, cluster: AX.econ, meaning: "Highest CS per minute — never misses a minion.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.csGames >= CS_MIN && a.avgCspm >= FLOOR.goodCspm });
+  rel("min", (a) => a.avgCspm, { key: "minionhater", label: "Minion Hater", tone: "shame", priority: 50, cluster: AX.econ, meaning: "Lowest CS per minute — farming is beneath them.", detail: (a) => `${a.avgCspm.toFixed(1)} CS/min` }, { gate: (a) => a.csGames >= CS_MIN && a.avgCspm < FLOOR.lowCspm });
   rel("max", (a) => a.avgGold, { key: "rich", label: "Gold Digger", tone: "neutral", priority: 44, cluster: AX.econ, meaning: "Earns the most gold per game.", detail: (a) => `${num(a.avgGold)} gold/game` });
   rel("min", (a) => a.avgGold, { key: "broke", label: "Broke", tone: "shame", priority: 42, cluster: AX.econ, meaning: "Earns the least gold — perpetually behind.", detail: (a) => `${num(a.avgGold)} gold/game` });
 
@@ -403,11 +412,13 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
     const champs = (champByPlayer.get(a.puuid) ?? []).sort((x, y) => y.g - x.g);
     const top = champs[0];
     if (top && top.g >= 10 && top.g / a.games >= 0.4) {
-      add(a.puuid, { key: `otp:${top.name}`, label: `${top.name} OTP`, tone: "neutral", priority: 73, cluster: "otp", lead: DOMINANT, meaning: `One-tricks ${top.name} — plays it in a huge share of games.`, detail: `${Math.round((top.g / a.games) * 100)}% on ${top.name}` });
+      const name = championDisplayName(top.name);
+      add(a.puuid, { key: `otp:${top.name}`, label: `${name} OTP`, tone: "neutral", priority: 73, cluster: "otp", lead: DOMINANT, meaning: `One-tricks ${name} — plays it in a huge share of games.`, detail: `${Math.round((top.g / a.games) * 100)}% on ${name}` });
     }
     const cursed = champs.filter((c) => c.g >= 12 && c.w / c.g <= 0.42).sort((x, y) => x.w / x.g - y.w / y.g)[0];
     if (cursed) {
-      add(a.puuid, { key: `cursed:${cursed.name}`, label: `Cursed: ${cursed.name}`, tone: "shame", priority: 80, cluster: "cursed", lead: DOMINANT, meaning: `Keeps losing on ${cursed.name} but refuses to drop it.`, detail: `${Math.round((cursed.w / cursed.g) * 100)}% over ${cursed.g}g` });
+      const name = championDisplayName(cursed.name);
+      add(a.puuid, { key: `cursed:${cursed.name}`, label: `Cursed: ${name}`, tone: "shame", priority: 80, cluster: "cursed", lead: DOMINANT, meaning: `Keeps losing on ${name} but refuses to drop it.`, detail: `${Math.round((cursed.w / cursed.g) * 100)}% over ${cursed.g}g` });
     }
   }
 

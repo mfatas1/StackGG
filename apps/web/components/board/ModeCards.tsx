@@ -5,7 +5,7 @@ import { Frame } from "../kit/Frame";
 import { ChampIcon } from "../kit/Avatar";
 import { CountUp } from "../kit/motion";
 import { SampleSize } from "../kit/Badge";
-import { pct, placementSuffix } from "@/lib/format";
+import { pct, placementSuffix, champName } from "@/lib/format";
 import { filterHref } from "@/lib/filters";
 
 // Champion winrate colour: blue (top tier) above 60%, green 50–60%, red below. Gold is
@@ -113,7 +113,7 @@ function Tile({
                 return (
                   <li key={c.championId} className="flex items-center gap-2 text-2xs">
                     <ChampIcon name={c.championName} size={18} />
-                    <span className="flex-1 truncate text-ink-dim">{c.championName}</span>
+                    <span className="flex-1 truncate text-ink-dim">{champName(c.championName)}</span>
                     <span className="tnum">
                       <span className="text-ink-faint">{c.games}g</span>{" "}
                       {c.games ? <span className={`font-semibold ${champTone(wr)}`}>{pct(wr)}</span> : null}

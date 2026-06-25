@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { champIcon, profileIcon, tierCrest, roleIcon, rankString } from "@/lib/format";
+import { champIcon, champName, profileIcon, tierCrest, roleIcon, rankString } from "@/lib/format";
 import { tierTone } from "./Badge";
 import type { RankInfo, PlayerIdentity } from "@crewstats/shared";
 import { PlayerLink } from "./links";
@@ -10,15 +10,16 @@ const NOTCH = { clipPath: "polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% 
 /** Square champion portrait in a notched Hextech slot, initials fallback. */
 export function ChampIcon({ name, size = 32 }: { name: string; size?: number }) {
   const [err, setErr] = useState(false);
+  const display = champName(name);
   if (err)
     return (
-      <span className="grid place-items-center bg-surface-3 text-[10px] font-medium text-ink-dim" style={{ width: size, height: size, ...NOTCH }} title={name}>
-        {name.slice(0, 2)}
+      <span className="grid place-items-center bg-surface-3 text-[10px] font-medium text-ink-dim" style={{ width: size, height: size, ...NOTCH }} title={display}>
+        {display.slice(0, 2)}
       </span>
     );
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={champIcon(name)} alt={name} width={size} height={size} title={name} style={NOTCH} onError={() => setErr(true)} />
+    <img src={champIcon(name)} alt={display} width={size} height={size} title={display} style={NOTCH} onError={() => setErr(true)} />
   );
 }
 

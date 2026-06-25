@@ -1,8 +1,11 @@
-import type { RankInfo } from "@crewstats/shared";
+import { championDisplayName, type RankInfo } from "@crewstats/shared";
 
 export const DDRAGON_VERSION = process.env.NEXT_PUBLIC_DDRAGON_VERSION ?? "16.12.1";
 
 const CHAMP_FIXUPS: Record<string, string> = { FiddleSticks: "Fiddlesticks" };
+
+/** Human-facing champion name (e.g. "MonkeyKing" → "Wukong", "MissFortune" → "Miss Fortune"). */
+export const champName = championDisplayName;
 
 export function champIcon(championName: string): string {
   const name = CHAMP_FIXUPS[championName] ?? championName;
