@@ -76,6 +76,7 @@ interface Agg {
   games: number;
   wins: number;
   avgKills: number;
+  nsKills: number; // avg kills over NON-support games (supports kill little by design)
   avgDeaths: number;
   avgAssists: number;
   avgDead: number;
@@ -114,6 +115,7 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
     `SELECT mp.puuid,
        count(*) AS games, count(*) FILTER (WHERE mp.win) AS wins,
        avg(mp.kills) AS avg_kills, avg(mp.deaths) AS avg_deaths, avg(mp.assists) AS avg_assists,
+       avg(mp.kills) FILTER (WHERE mp.role IS DISTINCT FROM 'UTILITY') AS avg_kills_ns,
        avg(mp.time_dead) AS avg_dead, avg(mp.longest_life) AS avg_life, avg(mp.vision_score) AS avg_vision,
        avg(mp.cs::float / GREATEST(m.game_duration, 1) * 60) FILTER (WHERE mp.role IS DISTINCT FROM 'UTILITY') AS avg_cspm,
        count(*) FILTER (WHERE mp.role IS DISTINCT FROM 'UTILITY') AS cs_games,
@@ -123,7 +125,7 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
        sum(COALESCE(mp.heal_teammates,0) + COALESCE(mp.shield_teammates,0)) AS heal_shield,
        avg(mp.team_damage_pct) AS team_dmg_pct, avg(mp.skillshots_dodged) AS dodged,
        sum(mp.kills_near_enemy_turret) AS tower_kills, sum(mp.fountain_takedowns) AS fountain,
-       sum(mp.smiteless_steals) AS smiteless, sum(mp.ally_saves) AS saves,
+       sum(mp.smiteless_steals) FILTER (WHERE mp.role IS DISTINCT FROM 'JUNGLE') AS smiteless, sum(mp.ally_saves) AS saves,
        avg(CASE WHEN extract(hour FROM m.game_start AT TIME ZONE 'Europe/Paris') < 5 THEN 1 ELSE 0 END) AS night_share,
        avg(m.game_duration) AS avg_dur,
        stddev_samp((mp.kills + mp.assists)::float / GREATEST(mp.deaths, 1)) AS kda_sd
@@ -139,6 +141,7 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
     games: Number(r.games),
     wins: Number(r.wins),
     avgKills: Number(r.avg_kills),
+    nsKills: Number(r.avg_kills_ns) || 0,
     avgDeaths: Number(r.avg_deaths),
     avgAssists: Number(r.avg_assists),
     avgDead: Number(r.avg_dead) || 0,
@@ -292,7 +295,10 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
 
   // ---- Kills / damage ----
   rel("max", (a) => a.avgKills, { key: "bloodthirsty", label: "Bloodthirsty", tone: "flex", priority: 66, cluster: AX.combat, meaning: "Most kills per game in the stack.", detail: (a) => `${a.avgKills.toFixed(1)} kills/game` }, { gate: (a) => a.avgKills >= FLOOR.manyKills });
-  rel("min", (a) => a.avgKills, { key: "pacifist", label: "Pacifist", tone: "neutral", priority: 58, cluster: AX.combat, meaning: "Fewest kills per game — a lover, not a fighter.", detail: (a) => `${a.avgKills.toFixed(1)} kills/game` });
+  // Pacifist measures kills over NON-support games only (supports kill little by design, so
+  // counting their games would falsely brand a support) and requires a real non-support
+  // sample — a primary support is excluded entirely.
+  rel("min", (a) => a.nsKills, { key: "pacifist", label: "Pacifist", tone: "shame", priority: 58, cluster: AX.combat, meaning: "Fewest kills per game — a lover, not a fighter.", detail: (a) => `${a.nsKills.toFixed(1)} kills/game` }, { gate: (a) => a.csGames >= CS_MIN });
   rel("max", (a) => a.avgDamage, { key: "glasscannon", label: "Glass Cannon", tone: "flex", priority: 68, cluster: AX.combat, meaning: "Deals the most damage to champions per game.", detail: (a) => `${num(a.avgDamage)} dmg/game` });
   rel("min", (a) => a.avgDamage, { key: "decoration", label: "Decoration", tone: "shame", priority: 64, cluster: AX.combat, meaning: "Least damage to champions — basically a ward with legs.", detail: (a) => `${num(a.avgDamage)} dmg/game` });
   rel("max", (a) => a.avgTank, { key: "punchingbag", label: "Punching Bag", tone: "neutral", priority: 56, cluster: AX.survival, meaning: "Eats the most damage per game — the frontline (or feeding).", detail: (a) => `${num(a.avgTank)} taken/game` });
@@ -403,7 +409,8 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
   rel("min", (a) => a.dodged, { key: "hitbox", label: "Walking Hitbox", tone: "shame", priority: 71, cluster: AX.survival, meaning: "Dodges the fewest skillshots — walks into everything.", detail: (a) => `${a.dodged.toFixed(1)} dodged/game` }, { gate: (a) => a.dodged > 0 });
   rel("max", (a) => a.towerKills, { key: "towerdiver", label: "Tower Diver", tone: "flex", priority: 59, cluster: "towerdiver", meaning: "Most kills under the enemy turret — fearless (or stupid).", detail: (a) => `${a.towerKills} kills under tower` }, { gate: (a) => a.towerKills > 0 });
   rel("max", (a) => a.fountain, { key: "fountain", label: "Fountain Diver", tone: "flex", priority: 67, cluster: "fountain", meaning: "Got takedowns in the enemy fountain. Peak disrespect.", detail: (a) => `${a.fountain} fountain takedowns` }, { gate: (a) => a.fountain > 0 });
-  rel("max", (a) => a.smiteless, { key: "smiteless", label: "Smiteless Thief", tone: "flex", priority: 66, cluster: "smiteless", meaning: "Stole an epic monster WITHOUT smite. Filthy.", detail: (a) => `${a.smiteless} smiteless steals` }, { gate: (a) => a.smiteless > 0 });
+  // Junglers stealing smiteless is routine and boring — only count steals as a NON-jungler.
+  rel("max", (a) => a.smiteless, { key: "smiteless", label: "Smiteless Thief", tone: "flex", priority: 66, cluster: "smiteless", meaning: "Stole an epic monster without smite — and not even as the jungler.", detail: (a) => `${a.smiteless} steals off-role` }, { gate: (a) => a.smiteless > 0 });
   rel("max", (a) => a.saves, { key: "guardian", label: "Guardian Angel", tone: "flex", priority: 53, cluster: AX.utility, meaning: "Saved teammates from certain death the most.", detail: (a) => `${a.saves} ally saves` }, { gate: (a) => a.saves > 0 });
 
   // ---- Identity (per-player, not relative) ----
