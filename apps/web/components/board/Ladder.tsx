@@ -7,17 +7,17 @@ import { Crown, ArrowUp, ArrowDown } from "lucide-react";
 import type { LeaderboardEntry, QueueSlug } from "@crewstats/shared";
 import type { PlayerTag } from "@crewstats/stats";
 import { ProfileIcon, RankCrest } from "../kit/Avatar";
-import { WLPills, SampleSize, StaleChip, WinLossDelta } from "../kit/Badge";
+import { WLPills, SampleSize, StaleChip } from "../kit/Badge";
 import { Gauge } from "../kit/Gauge";
 import { Empty } from "../kit/Frame";
 import { playerHref } from "../kit/links";
 import { pct, placementSuffix, rankScore } from "@/lib/format";
 
-type SortKey = "rank" | "wr" | "wr7d" | "vs" | "place";
+type SortKey = "rank" | "wr" | "place";
 type Dir = "asc" | "desc";
 
 const COLS =
-  "grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:grid-cols-[2.5rem_minmax(0,1fr)_9rem_11rem_auto] lg:grid-cols-[2.5rem_minmax(0,1fr)_9.5rem_12rem_8rem_3.5rem_5rem]";
+  "grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:grid-cols-[2.5rem_minmax(0,1fr)_9rem_11rem] lg:grid-cols-[2.5rem_minmax(0,1fr)_9.5rem_12rem_8rem]";
 
 /**
  * The crew Ladder — the centerpiece. Sortable header buttons (aria-sort); rows
@@ -50,8 +50,6 @@ export function Ladder({
   const sorted = useMemo(() => {
     const val = (e: LeaderboardEntry) =>
       sort.key === "wr" ? (e.winrate ?? -1)
-      : sort.key === "wr7d" ? (e.winrate7d ?? -1)
-      : sort.key === "vs" ? (e.vsCrewAvgWinrate ?? -999)
       : sort.key === "rank" ? rankScore(queue === "flex" ? e.rankFlex : e.rankSolo)
       : (e.avgPlacement ?? 999);
     const arr = [...entries].sort((a, b) => val(a) - val(b));
@@ -71,8 +69,6 @@ export function Ladder({
         <Sort className="hidden sm:flex" label="Rank" active={sort.key === "rank"} dir={sort.dir} onClick={() => toggle("rank", "desc")} />
         <Sort label={isArena ? "Avg place" : "Winrate"} active={sort.key === (isArena ? "place" : "wr")} dir={sort.dir} onClick={() => (isArena ? toggle("place", "asc") : toggle("wr", "desc"))} />
         <span role="columnheader" className="hidden lg:block">Form</span>
-        <Sort className="hidden lg:flex" label="7d" active={sort.key === "wr7d"} dir={sort.dir} onClick={() => toggle("wr7d", "desc")} />
-        <Sort className="justify-end" label="vs stack" active={sort.key === "vs"} dir={sort.dir} onClick={() => toggle("vs", "desc")} />
       </div>
 
       <div role="rowgroup" className="space-y-1">
@@ -119,12 +115,6 @@ export function Ladder({
               </span>
               <span role="cell" className="hidden lg:block">
                 <WLPills form={e.form} />
-              </span>
-              <span role="cell" className="hidden font-mono text-ink-dim tnum lg:block">
-                {e.winrate7d != null ? pct(e.winrate7d) : "—"}
-              </span>
-              <span role="cell" className="text-right">
-                <WinLossDelta pp={e.vsCrewAvgWinrate} />
               </span>
             </motion.div>
           );
