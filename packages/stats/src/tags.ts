@@ -70,6 +70,9 @@ const AX = {
   gamelength: "gamelength", // your games run long ↔ short
   consistency: "consistency", // boom-or-bust ↔ same stat line every game
 } as const;
+// The shared stat axes. Any tag whose cluster ISN'T one of these is a rare/identity
+// "special" tag (its own unique cluster) — promoted ahead of generic superlatives in the cut.
+const AX_SET: Set<string> = new Set(Object.values(AX));
 
 interface Agg {
   puuid: string;
@@ -453,11 +456,16 @@ export async function getCrewTags(client: Queryable, puuids: string[]): Promise<
       // Priority only breaks ties when two facets are equally dominant.
       if (!prev || t.lead > prev.lead || (t.lead === prev.lead && t.priority > prev.priority)) best.set(t.cluster, t);
     }
-    // Across axes, the final cut keeps the most NOTABLE signatures (priority) rather than
-    // the most statistically dominant — a tight Glass Cannon is more fun to show than a
-    // runaway "fewest games". Flip this to compare on `lead` if you'd rather it be purely
-    // distance-driven.
-    out[puuid] = [...best.values()].sort((x, y) => y.priority - x.priority).slice(0, CAP_PER_PLAYER);
+    // Across axes, the final cut keeps the most NOTABLE signatures. SPECIAL tags — the rare
+    // "you did a cool thing" badges and identity tags (Pentakill King, Smiteless Thief,
+    // Objective Thief, Fountain/Tower Diver, Solo Killer, Spree King, OTP, Cursed) — always
+    // rank ahead of the generic relative superlatives, so they're never crowded out of the
+    // CAP by an Int Andy / Glass Cannon. They're identifiable as any tag NOT on a shared
+    // stat axis (AX.*). Within each group we then order by priority (most notable first).
+    const isSpecial = (t: PlayerTag) => !AX_SET.has(t.cluster);
+    out[puuid] = [...best.values()]
+      .sort((x, y) => Number(isSpecial(y)) - Number(isSpecial(x)) || y.priority - x.priority)
+      .slice(0, CAP_PER_PLAYER);
   }
   return out;
 }
