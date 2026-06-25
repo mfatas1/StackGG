@@ -301,8 +301,9 @@ export async function getCrewTags(
     { key: "spree", label: "Spree King", tone: "flex", dir: 1, priority: 43, meaning: "Longest single killing spree without dying.", sample: (a) => m(a.maxSpree, `${a.maxSpree}-kill spree`) },
     { key: "pentaking", label: "Pentakill King", tone: "flex", dir: 1, priority: 69, meaning: "Most pentakills in the group. ACE!", sample: (a) => m(a.pentas, `${a.pentas} penta${a.pentas === 1 ? "" : "s"}`) },
     { key: "towerdiver", label: "Tower Diver", tone: "flex", dir: 1, priority: 59, meaning: "Most kills under the enemy turret — fearless (or stupid).", sample: (a) => m(a.towerKills, `${a.towerKills} kills under tower`) },
-    { key: "fountain", label: "Fountain Diver", tone: "flex", dir: 1, priority: 67, meaning: "Got takedowns in the enemy fountain. Peak disrespect.", sample: (a) => m(a.fountain, `${a.fountain} fountain takedowns`) },
-    { key: "smiteless", label: "Smiteless Thief", tone: "flex", dir: 1, priority: 66, meaning: "Stole an epic monster without smite — and not even as the jungler.", sample: (a) => m(a.smiteless, `${a.smiteless} steals off-role`) },
+    // Smiteless Thief needs a genuine habit of it (>= 10 off-role steals), not just the
+    // stack's high z-score — anyone below that floor is left out of the comparison entirely.
+    { key: "smiteless", label: "Smiteless Thief", tone: "flex", dir: 1, priority: 66, meaning: "Stole an epic monster without smite — and not even as the jungler.", sample: (a) => (a.smiteless >= 10 ? m(a.smiteless, `${a.smiteless} steals off-role`) : null) },
 
     // ---- Identity (champion-anchored): metric = how concentrated / how cursed, with the
     // champ riding along in the label & detail. Needs a meaningfully-played champ to apply. ----
