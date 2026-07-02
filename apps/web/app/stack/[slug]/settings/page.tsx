@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPool, query, env } from "@crewstats/shared";
-import { getCrewBySlug, isCrewOwner } from "@/lib/crews";
+import { getCrewBySlug, isCrewOwner, isCrewMember } from "@/lib/crews";
 import { getCurrentUser } from "@/lib/session";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { DashboardEditor } from "@/components/DashboardEditor";
+import { resolveConfigForViewer } from "@/lib/dashboard-resolve";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +16,8 @@ export default async function SettingsPage({ params }: { params: Promise<{ slug:
 
   const user = await getCurrentUser();
   const owner = user ? await isCrewOwner(crew.id, user.id) : false;
+  const member = user ? await isCrewMember(crew.id, user.id) : false;
+  const dashboardConfig = await resolveConfigForViewer(crew, user?.id ?? null);
 
   const members = await query<{ puuid: string; riot_id: string; tag: string; role: string }>(
     `SELECT cm.puuid, ra.riot_id, ra.tag, cm.role
@@ -41,6 +45,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ slug:
         isOwner={owner}
         baseUrl={baseUrl}
       />
+      {member && <DashboardEditor slug={slug} initial={dashboardConfig} isOwner={owner} />}
     </div>
   );
 }

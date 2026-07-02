@@ -1,32 +1,33 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { unstable_cache } from "next/cache";
+import type { ReactNode } from "react";
 import { Settings } from "lucide-react";
 import { getPool, env } from "@crewstats/shared";
-import type { QueueSlug } from "@crewstats/shared";
-import { getCrewBySlug } from "@/lib/crews";
+import type { QueueSlug, PanelId } from "@crewstats/shared";
+import { getCrewBySlug, isCrewMember } from "@/lib/crews";
+import { getCurrentUser } from "@/lib/session";
 import {
   getCrewDashboard,
   getCrewAwards,
   getCrewRoleMatrix,
   getCrewMemberPuuids,
   getCrewTags,
+  getCrewSessions,
   getLeaderboard,
   getActivity,
 } from "@crewstats/stats";
 import { parseQueueSlug } from "@/components/kit/Tabs";
-import { Frame, Section, PanelHead } from "@/components/kit/Frame";
+import { Frame } from "@/components/kit/Frame";
 import { AvatarStack } from "@/components/kit/Avatar";
 import { CopyInvite, RefreshButton } from "@/components/CrewControls";
 import { RoutePose } from "@/components/rift/RoutePose";
 import { JoinWelcome } from "@/components/brand/JoinWelcome";
-import { StatRail } from "@/components/board/StatRail";
-import { SynergyExplorer } from "@/components/board/SynergyExplorer";
-import { Awards } from "@/components/board/Awards";
-import { RoleMatrix } from "@/components/board/RoleMatrix";
-import { LaneLeaders } from "@/components/board/LaneLeaders";
-import { QueueProvider, QueueTabsClient, LadderForQueue, ActivityForQueue } from "@/components/board/QueueBoard";
+import { QueueProvider } from "@/components/board/QueueBoard";
 import type { QueueBoards } from "@/components/board/QueueBoard";
+import { PANEL_RENDERERS, type PanelContext } from "@/components/board/registry";
+import { DashboardCanvas } from "@/components/DashboardCanvas";
+import { resolveConfigForViewer } from "@/lib/dashboard-resolve";
 
 const QUEUE_SLUGS: QueueSlug[] = ["all", "ranked", "flex", "aram", "arena"];
 
@@ -38,13 +39,14 @@ const QUEUE_SLUGS: QueueSlug[] = ["all", "ranked", "flex", "aram", "arena"];
 function loadBase(crewId: string, puuids: string[]) {
   return unstable_cache(
     async () => {
-      const [d, awards, roleMatrix, tags] = await Promise.all([
+      const [d, awards, roleMatrix, tags, sessions] = await Promise.all([
         getCrewDashboard(getPool(), crewId, "all", puuids),
         getCrewAwards(getPool(), puuids),
         getCrewRoleMatrix(getPool(), puuids),
         getCrewTags(getPool(), puuids),
+        getCrewSessions(getPool(), puuids),
       ]);
-      return { d, awards, roleMatrix, tags };
+      return { d, awards, roleMatrix, tags, sessions };
     },
     ["crew-base", crewId, puuids.join(",")],
     { revalidate: 30, tags: [`crew:${crewId}`] },
@@ -95,11 +97,24 @@ export default async function CrewDashboardPage({
   // Load the queue-independent base + all queues' boards once, both cached. Tab
   // switching then happens entirely client-side (QueueProvider) — no round-trips.
   const [base, boards] = await Promise.all([loadBase(crew.id, puuids), loadBoards(crew.id, puuids)]);
-  const { d, awards, roleMatrix, tags } = base;
+  const { d, awards, roleMatrix, tags, sessions } = base;
   if (!d) notFound();
 
   const inviteUrl = `${env().NEXT_PUBLIC_BASE_URL}/join/${crew.invite_code}`;
   const basePath = `/stack/${slug}`;
+
+  // Resolve the layout for THIS viewer (docs/competitive-casual-revamp.md): owner & signed-out
+  // see the public layout; a member with a personal override sees their own. We render every
+  // known panel server-side into a node map so the in-page editor can add one with no round-trip.
+  const viewer = await getCurrentUser();
+  const isMember = viewer ? await isCrewMember(crew.id, viewer.id) : false;
+  const isOwner = !!viewer && crew.owner_user_id === viewer.id;
+  const config = await resolveConfigForViewer(crew, viewer?.id ?? null);
+
+  const ctx: PanelContext = { d, awards, roleMatrix, tags, sessions, boards, crewSlug: slug, basePath };
+  const nodes = Object.fromEntries(
+    config.panels.map((p) => [p.id, PANEL_RENDERERS[p.id](ctx)]),
+  ) as Record<PanelId, ReactNode>;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6">
@@ -126,57 +141,8 @@ export default async function CrewDashboardPage({
         </div>
       </Frame>
 
-      <StatRail d={d} crewSlug={slug} />
-
       <QueueProvider initial={queue} basePath={basePath}>
-      <Section title="Leaderboard" action={<QueueTabsClient />}>
-        <Frame>
-          <div className="p-3">
-            <LadderForQueue boards={boards} crewSlug={slug} tags={tags} />
-          </div>
-        </Frame>
-      </Section>
-
-      <Section title="Who plays well together">
-        <SynergyExplorer members={d.members} lineups={d.lineups} minGames={d.minSynergyGames} crewSlug={slug} />
-      </Section>
-
-      <div className="grid items-stretch gap-4 lg:grid-cols-2">
-        <Frame>
-          <div className="flex h-full flex-col">
-            <PanelHead title="Where everyone plays" />
-            <div className="flex flex-1 flex-col p-4 pt-3">
-              <RoleMatrix rows={roleMatrix} crewSlug={slug} fill />
-            </div>
-          </div>
-        </Frame>
-        <Frame>
-          <PanelHead
-            title="Records"
-            action={
-              awards.length > 0 ? (
-                <Link href={`${basePath}/records`} className="text-2xs font-semibold uppercase tracking-[0.12em] text-ink-faint transition-colors hover:text-gold">
-                  View all →
-                </Link>
-              ) : undefined
-            }
-          />
-          <div className="p-4 pt-3">
-            <Awards awards={awards} crewSlug={slug} limit={6} />
-          </div>
-        </Frame>
-      </div>
-
-      <Frame>
-        <PanelHead title="Best in each lane" />
-        <div className="p-4 pt-4">
-          <LaneLeaders rows={roleMatrix} crewSlug={slug} />
-        </div>
-      </Frame>
-
-      <Section title="Recent shared games">
-        <ActivityForQueue boards={boards} crewSlug={slug} />
-      </Section>
+        <DashboardCanvas nodes={nodes} config={config} isMember={isMember} isOwner={isOwner} slug={slug} />
       </QueueProvider>
     </div>
   );

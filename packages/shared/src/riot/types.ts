@@ -71,6 +71,24 @@ export const ParticipantDtoSchema = z
     timeCCingOthers: z.number().int().optional().default(0),
     largestCriticalStrike: z.number().int().optional().default(0),
     objectivesStolen: z.number().int().optional().default(0),
+    // Ping wheel counts (recap "comedy" fuel, migration 009). All participant-level.
+    allInPings: z.number().int().optional().default(0),
+    assistMePings: z.number().int().optional().default(0),
+    baitPings: z.number().int().optional().default(0),
+    basicPings: z.number().int().optional().default(0),
+    commandPings: z.number().int().optional().default(0),
+    dangerPings: z.number().int().optional().default(0),
+    enemyMissingPings: z.number().int().optional().default(0),
+    enemyVisionPings: z.number().int().optional().default(0),
+    getBackPings: z.number().int().optional().default(0),
+    holdPings: z.number().int().optional().default(0),
+    needVisionPings: z.number().int().optional().default(0),
+    onMyWayPings: z.number().int().optional().default(0),
+    pushPings: z.number().int().optional().default(0),
+    visionClearedPings: z.number().int().optional().default(0),
+    // Surrender flags.
+    gameEndedInSurrender: z.boolean().optional().default(false),
+    gameEndedInEarlySurrender: z.boolean().optional().default(false),
     challenges: z
       .object({
         soloKills: z.number().optional(),
@@ -80,6 +98,15 @@ export const ParticipantDtoSchema = z
         takedownsInEnemyFountain: z.number().optional(),
         epicMonsterStolenWithoutSmite: z.number().optional(),
         saveAllyFromDeath: z.number().optional(),
+        // Comedy challenges (migration 009).
+        killsUnderOwnTurret: z.number().optional(),
+        outnumberedKills: z.number().optional(),
+        perfectGame: z.number().optional(),
+        abilityUses: z.number().optional(),
+        dancedWithRiftHerald: z.number().optional(),
+        survivedSingleDigitHpCount: z.number().optional(),
+        knockEnemyIntoTeamAndKill: z.number().optional(),
+        fistBumpParticipation: z.number().optional(),
       })
       .passthrough()
       .optional(),

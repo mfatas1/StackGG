@@ -38,7 +38,51 @@ export interface CrewRow {
   invite_code: string;
   owner_user_id: string | null;
   created_at: string;
+  /** Customizable dashboard layout (docs/dashboard-revamp.md). NULL = code DEFAULT_LAYOUT. */
+  dashboard_config: DashboardConfig | null;
 }
+
+// ---------- Customizable dashboard layout ----------
+
+/**
+ * Every panel the stack dashboard can show. Order here is the canonical/default render
+ * order. Adding a panel = append an id; old saved configs that lack it get it appended
+ * (hidden) by the resolver, so this list can grow without breaking stored layouts.
+ */
+export const PANEL_IDS = [
+  "stat-rail",
+  "leaderboard",
+  "synergy",
+  "role-matrix",
+  "records",
+  "lane-leaders",
+  "tags",
+  "recent-games",
+  // v2, trimmed (docs/competitive-casual-revamp.md): the two adds that earn their place
+  "team-performance", // how we do together: winrate by group size + blended rank + best lineups
+  "sessions", // night-by-night history
+] as const;
+export type PanelId = (typeof PANEL_IDS)[number];
+
+export const PanelWidthSchema = z.enum(["full", "half"]);
+export type PanelWidth = z.infer<typeof PanelWidthSchema>;
+
+export const DashboardPresetSchema = z.enum(["balanced", "competitive", "casual", "custom"]);
+export type DashboardPreset = z.infer<typeof DashboardPresetSchema>;
+
+export const DashboardPanelSchema = z.object({
+  id: z.enum(PANEL_IDS),
+  visible: z.boolean(),
+  width: PanelWidthSchema,
+});
+export type DashboardPanel = z.infer<typeof DashboardPanelSchema>;
+
+export const DashboardConfigSchema = z.object({
+  version: z.literal(1),
+  preset: DashboardPresetSchema,
+  panels: z.array(DashboardPanelSchema).max(PANEL_IDS.length),
+});
+export type DashboardConfig = z.infer<typeof DashboardConfigSchema>;
 
 export interface CrewMemberRow {
   crew_id: string;

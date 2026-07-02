@@ -12,6 +12,7 @@ import {
   seasonStartDays,
   RiotApiError,
   type CrewRow,
+  type DashboardConfig,
 } from "@crewstats/shared";
 import { enqueueBackfill, enqueuePollCrew, enqueueWeekly } from "./boss.js";
 
@@ -193,6 +194,54 @@ export async function regenerateInviteCode(crewId: string): Promise<string> {
 
 export async function renameCrew(crewId: string, name: string): Promise<void> {
   await getPool().query(`UPDATE crews SET name = $1 WHERE id = $2`, [name, crewId]);
+}
+
+export async function saveDashboardConfig(crewId: string, config: DashboardConfig): Promise<void> {
+  await getPool().query(`UPDATE crews SET dashboard_config = $1::jsonb WHERE id = $2`, [JSON.stringify(config), crewId]);
+}
+
+/** Owner "reset to default" — clears the public layout so it falls back to DEFAULT_LAYOUT. */
+export async function clearDashboardConfig(crewId: string): Promise<void> {
+  await getPool().query(`UPDATE crews SET dashboard_config = NULL WHERE id = $1`, [crewId]);
+}
+
+/** A user's personal layout override for a stack (docs/competitive-casual-revamp.md), or null. */
+export async function getUserDashboardConfig(crewId: string, userId: string): Promise<unknown | null> {
+  const row = await queryOne<{ config: unknown }>(
+    `SELECT config FROM dashboard_layouts WHERE crew_id = $1 AND user_id = $2`,
+    [crewId, userId],
+  );
+  return row?.config ?? null;
+}
+
+export async function saveUserDashboardConfig(crewId: string, userId: string, config: DashboardConfig): Promise<void> {
+  await getPool().query(
+    `INSERT INTO dashboard_layouts (crew_id, user_id, config, updated_at)
+     VALUES ($1, $2, $3::jsonb, now())
+     ON CONFLICT (crew_id, user_id) DO UPDATE SET config = EXCLUDED.config, updated_at = now()`,
+    [crewId, userId, JSON.stringify(config)],
+  );
+}
+
+export async function deleteUserDashboardConfig(crewId: string, userId: string): Promise<void> {
+  await getPool().query(`DELETE FROM dashboard_layouts WHERE crew_id = $1 AND user_id = $2`, [crewId, userId]);
+}
+
+/**
+ * A user may edit a stack's dashboard if they're the owner OR a member via a claimed Riot
+ * account. Owners edit the public layout; members edit their personal override.
+ */
+export async function isCrewMember(crewId: string, userId: string): Promise<boolean> {
+  const row = await queryOne(
+    `SELECT 1 FROM crews c
+      WHERE c.id = $1
+        AND (c.owner_user_id = $2
+             OR EXISTS (SELECT 1 FROM crew_members cm
+                          JOIN riot_accounts ra ON ra.puuid = cm.puuid
+                         WHERE cm.crew_id = c.id AND ra.claimed_by_user_id = $2))`,
+    [crewId, userId],
+  );
+  return !!row;
 }
 
 export async function removeMember(crewId: string, puuid: string): Promise<void> {

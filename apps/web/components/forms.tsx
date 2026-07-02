@@ -169,7 +169,7 @@ function pushRecent(s: Suggestion) {
   }
 }
 
-export function RiotIdForm({ size = "md" }: { size?: "md" | "lg" }) {
+export function RiotIdForm({ size = "md", cta = "See your year" }: { size?: "md" | "lg"; cta?: string }) {
   const router = useRouter();
   const [riotId, setRiotId] = useState("");
   const [region, setRegion] = useState("euw1");
@@ -298,7 +298,7 @@ export function RiotIdForm({ size = "md" }: { size?: "md" | "lg" }) {
       </div>
       <RegionSelect value={region} onChange={setRegion} size={size} />
       <Button size={size === "lg" ? "lg" : "md"} loading={loading} disabled={!valid}>
-        See your stats
+        {cta}
         {!loading && <ArrowRight className="h-4 w-4" />}
       </Button>
     </form>

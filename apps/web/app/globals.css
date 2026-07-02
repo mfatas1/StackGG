@@ -261,4 +261,11 @@
   .conduit {
     transition: opacity 0.001ms;
   }
+  /* Safety net: never let a reduced-motion user get stranded on a motion `initial`
+   * (opacity:0). The recap reveals content with whileInView; if the animation is skipped,
+   * force the final visible state so no scene is ever blank. */
+  .recap-scroll [style*="opacity:0"] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }

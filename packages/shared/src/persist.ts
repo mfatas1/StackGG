@@ -98,6 +98,33 @@ export interface ParticipantRowInput {
   fountain_takedowns: number | null;
   smiteless_steals: number | null;
   ally_saves: number | null;
+  // Recap "comedy" fuel (migration 009): ping wheel counts.
+  all_in_pings: number;
+  assist_me_pings: number;
+  bait_pings: number;
+  basic_pings: number;
+  command_pings: number;
+  danger_pings: number;
+  enemy_missing_pings: number;
+  enemy_vision_pings: number;
+  get_back_pings: number;
+  hold_pings: number;
+  need_vision_pings: number;
+  on_my_way_pings: number;
+  push_pings: number;
+  vision_cleared_pings: number;
+  // Comedy challenges (null when the match has no challenges block).
+  kills_under_own_turret: number | null;
+  outnumbered_kills: number | null;
+  perfect_game: number | null;
+  ability_uses: number | null;
+  danced_with_herald: number | null;
+  survived_single_digit_hp: number | null;
+  knock_into_team_kills: number | null;
+  fist_bump_participation: number | null;
+  // Surrender flags.
+  ended_in_surrender: boolean;
+  team_early_surrendered: boolean;
 }
 
 export function mapParticipant(matchId: string, queueId: number, p: ParticipantDto): ParticipantRowInput {
@@ -138,6 +165,30 @@ export function mapParticipant(matchId: string, queueId: number, p: ParticipantD
     fountain_takedowns: p.challenges?.takedownsInEnemyFountain ?? null,
     smiteless_steals: p.challenges?.epicMonsterStolenWithoutSmite ?? null,
     ally_saves: p.challenges?.saveAllyFromDeath ?? null,
+    all_in_pings: p.allInPings ?? 0,
+    assist_me_pings: p.assistMePings ?? 0,
+    bait_pings: p.baitPings ?? 0,
+    basic_pings: p.basicPings ?? 0,
+    command_pings: p.commandPings ?? 0,
+    danger_pings: p.dangerPings ?? 0,
+    enemy_missing_pings: p.enemyMissingPings ?? 0,
+    enemy_vision_pings: p.enemyVisionPings ?? 0,
+    get_back_pings: p.getBackPings ?? 0,
+    hold_pings: p.holdPings ?? 0,
+    need_vision_pings: p.needVisionPings ?? 0,
+    on_my_way_pings: p.onMyWayPings ?? 0,
+    push_pings: p.pushPings ?? 0,
+    vision_cleared_pings: p.visionClearedPings ?? 0,
+    kills_under_own_turret: p.challenges?.killsUnderOwnTurret ?? null,
+    outnumbered_kills: p.challenges?.outnumberedKills ?? null,
+    perfect_game: p.challenges?.perfectGame ?? null,
+    ability_uses: p.challenges?.abilityUses ?? null,
+    danced_with_herald: p.challenges?.dancedWithRiftHerald ?? null,
+    survived_single_digit_hp: p.challenges?.survivedSingleDigitHpCount ?? null,
+    knock_into_team_kills: p.challenges?.knockEnemyIntoTeamAndKill ?? null,
+    fist_bump_participation: p.challenges?.fistBumpParticipation ?? null,
+    ended_in_surrender: p.gameEndedInSurrender ?? false,
+    team_early_surrendered: p.gameEndedInEarlySurrender ?? false,
   };
 }
 
@@ -196,11 +247,31 @@ export async function persistMatch(
           self_mitigated, heal_teammates, shield_teammates, cc_time, largest_crit,
           objectives_stolen, solo_kills,
           team_damage_pct, skillshots_dodged, kills_near_enemy_turret, fountain_takedowns,
-          smiteless_steals, ally_saves, carry_score, is_team_mvp)
+          smiteless_steals, ally_saves, carry_score, is_team_mvp,
+          all_in_pings, assist_me_pings, bait_pings, basic_pings, command_pings, danger_pings,
+          enemy_missing_pings, enemy_vision_pings, get_back_pings, hold_pings, need_vision_pings,
+          on_my_way_pings, push_pings, vision_cleared_pings,
+          kills_under_own_turret, outnumbered_kills, perfect_game, ability_uses, danced_with_herald,
+          survived_single_digit_hp, knock_into_team_kills, fist_bump_participation,
+          ended_in_surrender, team_early_surrendered)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
                $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,
-               $30,$31,$32,$33,$34,$35,$36,$37)
-       ON CONFLICT (match_id, puuid) DO NOTHING`,
+               $30,$31,$32,$33,$34,$35,$36,$37,
+               $38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,
+               $52,$53,$54,$55,$56,$57,$58,$59,$60,$61)
+       ON CONFLICT (match_id, puuid) DO UPDATE SET
+         all_in_pings = EXCLUDED.all_in_pings, assist_me_pings = EXCLUDED.assist_me_pings,
+         bait_pings = EXCLUDED.bait_pings, basic_pings = EXCLUDED.basic_pings,
+         command_pings = EXCLUDED.command_pings, danger_pings = EXCLUDED.danger_pings,
+         enemy_missing_pings = EXCLUDED.enemy_missing_pings, enemy_vision_pings = EXCLUDED.enemy_vision_pings,
+         get_back_pings = EXCLUDED.get_back_pings, hold_pings = EXCLUDED.hold_pings,
+         need_vision_pings = EXCLUDED.need_vision_pings, on_my_way_pings = EXCLUDED.on_my_way_pings,
+         push_pings = EXCLUDED.push_pings, vision_cleared_pings = EXCLUDED.vision_cleared_pings,
+         kills_under_own_turret = EXCLUDED.kills_under_own_turret, outnumbered_kills = EXCLUDED.outnumbered_kills,
+         perfect_game = EXCLUDED.perfect_game, ability_uses = EXCLUDED.ability_uses,
+         danced_with_herald = EXCLUDED.danced_with_herald, survived_single_digit_hp = EXCLUDED.survived_single_digit_hp,
+         knock_into_team_kills = EXCLUDED.knock_into_team_kills, fist_bump_participation = EXCLUDED.fist_bump_participation,
+         ended_in_surrender = EXCLUDED.ended_in_surrender, team_early_surrendered = EXCLUDED.team_early_surrendered`,
       [
         r.match_id, r.puuid, r.team_id, r.subteam_id, r.placement, r.champion_id, r.champion_name,
         r.role, r.win, r.kills, r.deaths, r.assists, r.gold, r.damage, r.cs, r.vision_score,
@@ -209,6 +280,12 @@ export async function persistMatch(
         r.objectives_stolen, r.solo_kills,
         r.team_damage_pct, r.skillshots_dodged, r.kills_near_enemy_turret, r.fountain_takedowns,
         r.smiteless_steals, r.ally_saves, c?.score ?? null, c?.mvp ?? null,
+        r.all_in_pings, r.assist_me_pings, r.bait_pings, r.basic_pings, r.command_pings, r.danger_pings,
+        r.enemy_missing_pings, r.enemy_vision_pings, r.get_back_pings, r.hold_pings, r.need_vision_pings,
+        r.on_my_way_pings, r.push_pings, r.vision_cleared_pings,
+        r.kills_under_own_turret, r.outnumbered_kills, r.perfect_game, r.ability_uses, r.danced_with_herald,
+        r.survived_single_digit_hp, r.knock_into_team_kills, r.fist_bump_participation,
+        r.ended_in_surrender, r.team_early_surrendered,
       ] as never[],
     );
     participantsWritten += (res as pg.QueryResult).rowCount ?? 0;
