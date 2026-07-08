@@ -9,5 +9,3 @@ export * from "./crew.js";
 export * from "./awards.js";
 export * from "./tags.js";
 export * from "./memberpage.js";
-export * from "./sessions.js";
-export * from "./recap.js";

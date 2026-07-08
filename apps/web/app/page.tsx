@@ -1,265 +1,218 @@
 "use client";
-import { useLayoutEffect } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { ArrowRight, Crown, Users2, Swords, TrendingUp } from "lucide-react";
+import { ArrowRight, Swords, Users, Plus, Crown } from "lucide-react";
 import { RiotIdForm } from "@/components/forms";
+import { SmoothScroll } from "@/components/kit/SmoothScroll";
 import { Reveal } from "@/components/kit/motion";
 import { Frame } from "@/components/kit/Frame";
-import { Gauge } from "@/components/kit/Gauge";
 import { WLPills } from "@/components/kit/Badge";
-import { champIcon, champName } from "@/lib/format";
+import { Gauge } from "@/components/kit/Gauge";
+import { POSES, lerpPose, setPose } from "@/components/rift/riftStore";
 
-/**
- * Commit the landing to the on-brand warm-dark "ember" theme (coral + gold), including the
- * global header/footer, then restore the visitor's own theme when they navigate away. The
- * page wrapper also carries data-theme so the content is correct on first server render.
- */
-function useLandingTheme() {
-  useLayoutEffect(() => {
-    const el = document.documentElement;
-    const prev = el.getAttribute("data-theme");
-    el.setAttribute("data-theme", "ember");
+/** Drives the camera from the hero pose down onto the deck as you scroll fold 1. */
+function useScrollDescent() {
+  useEffect(() => {
+    setPose(POSES.hero!);
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const p = Math.min(1, window.scrollY / (window.innerHeight * 0.9));
+        setPose(lerpPose(POSES.hero!, POSES.dive!, p));
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
     return () => {
-      if (prev) el.setAttribute("data-theme", prev);
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
     };
   }, []);
 }
 
 export default function Landing() {
-  useLandingTheme();
+  useScrollDescent();
   return (
-    <div data-theme="ember" className="relative isolate overflow-hidden">
-      <Backdrop />
+    <>
+      <SmoothScroll />
 
-      {/* ── Hero ── one screen, one action ── */}
-      <section className="relative mx-auto flex min-h-[calc(100svh-3.5rem)] max-w-4xl flex-col items-center justify-center px-4 pb-8 pt-10 text-center sm:px-6">
-        <h1 className="animate-fade-up font-display text-[clamp(2.9rem,8vw,6rem)] font-extrabold leading-[0.92] tracking-[-0.035em] motion-reduce:animate-none">
-          Your whole squad&apos;s League.
-          <br />
-          <span className="text-primary">On one page.</span>
-        </h1>
+      {/* Global legibility veil over the Rift so copy on every fold reads. Flat + fixed
+          so it's consistent at any scroll position; the Rift still shows through. */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-[2] bg-bg/55" />
 
-        <p
-          className="animate-fade-up mt-6 max-w-xl text-pretty text-base text-ink-dim [animation-delay:80ms] motion-reduce:animate-none sm:text-lg"
-        >
-          op.gg is about you. StackGG is about the group.
-        </p>
+      {/* Fold 1 — the descent */}
+      <section className="relative mx-auto grid min-h-[92vh] max-w-6xl items-center gap-12 px-4 pb-16 pt-20 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
+        {/* Hero scrim — FULL-BLEED (breaks out of the centered container) so it never
+            cuts off with a hard edge on wide screens. Fades right so the ladder shows Rift. */}
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 left-1/2 -z-[1] w-screen -translate-x-1/2 bg-[radial-gradient(58%_92%_at_30%_46%,oklch(var(--bg)/0.9),oklch(var(--bg)/0.5)_46%,transparent_72%)]" />
+        <div>
+          <h1 className="font-display text-[clamp(2.5rem,6.5vw,5rem)] font-extrabold leading-[0.98] tracking-[-0.03em]">
+            Settle it. <span className="text-primary">As a stack.</span>
+          </h1>
+          <p className="mt-5 max-w-xl text-pretty text-base text-ink-dim sm:text-lg">
+            One shared page for your League squad: a cross-mode leaderboard and duo synergy for your 5-stack. Built
+            for the argument in your Discord at 1am.
+          </p>
+          <div className="mt-7 max-w-xl">
+            <Frame tone="lit" className="p-2 shadow-[0_0_40px_oklch(var(--primary)/0.18)]">
+              <div className="p-1">
+                <RiotIdForm size="lg" />
+              </div>
+            </Frame>
+            <p className="mt-2.5 text-2xs text-ink-faint">No signup to see your own stats. Create a stack when you want the group view.</p>
+          </div>
+        </div>
+        <div className="lg:translate-y-2">
+          <DemoLadder />
+        </div>
+      </section>
 
-        <div className="animate-fade-up mt-9 w-full max-w-xl [animation-delay:160ms] motion-reduce:animate-none">
-          <Frame tone="lit" className="p-2 shadow-[0_0_60px_oklch(var(--primary)/0.25)]">
-            <div className="p-1">
-              <RiotIdForm size="lg" cta="See your stats" />
+      {/* Fold 2 — we model the group */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-24">
+        <Reveal>
+          <h2 className="max-w-2xl font-display text-3xl font-bold tracking-tight sm:text-4xl">
+            op.gg models <span className="text-ink-dim">you</span>. We model the <span className="text-primary">group</span>.
+          </h2>
+          <p className="mt-3 max-w-xl text-ink-dim">The unit of analysis is the friend group, not the player. That&apos;s the whole difference.</p>
+        </Reveal>
+        <Reveal className="mt-10 grid items-center gap-6 lg:grid-cols-[0.8fr_auto_1.2fr]" delay={80}>
+          <Frame className="mx-auto w-full max-w-xs opacity-90">
+            <div className="p-5">
+              <div className="flex items-center gap-2.5">
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-surface-3 text-2xs font-semibold text-ink-dim">YOU</span>
+                <div>
+                  <div className="text-sm font-medium">Your solo page</div>
+                  <div className="text-2xs text-ink-faint">every other stats site</div>
+                </div>
+              </div>
+              <div className="mt-4 flex items-baseline justify-between">
+                <span className="font-display text-3xl font-bold tnum">58%</span>
+                <WLPills form={["W", "L", "W", "W", "L"]} />
+              </div>
+              <p className="mt-3 text-2xs text-ink-faint">Ranked Solo · 142 games · Platinum II</p>
+              <div className="mt-3 border-t border-line/50 pt-3 text-2xs text-ink-faint">A number with no one to argue with.</div>
             </div>
           </Frame>
-          <p className="mt-3 text-2xs text-ink-faint">Free. No signup to see your own stats.</p>
-        </div>
-      </section>
-
-      {/* ── The product, as the star ── */}
-      <section className="relative mx-auto -mt-4 max-w-5xl px-4 pb-24 sm:px-6 lg:-mt-8 lg:pb-32">
-        <div className="animate-fade-up [animation-delay:260ms] motion-reduce:animate-none">
-          <DashboardShot />
-        </div>
-      </section>
-
-      {/* ── One concise closer ── */}
-      <section className="relative mx-auto max-w-3xl px-4 pb-24 text-center sm:px-6 lg:pb-32">
-        <Reveal>
-          <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">One link. The whole squad.</h2>
-          <p className="mx-auto mt-4 max-w-xl text-pretty text-ink-dim">
-            Make a stack, drop the invite in your Discord, and everyone adds their Riot ID. Every shared game merges into
-            one page you all argue over.
-          </p>
-          <div className="mt-8">
-            <Link
-              href="/stack/new"
-              className="notch inline-flex items-center gap-2 bg-primary px-6 py-3 font-semibold text-primary-on transition-transform hover:-translate-y-0.5"
-            >
-              Make a stack <ArrowRight className="h-4 w-4" />
-            </Link>
+          <div className="mx-auto hidden h-9 w-9 place-items-center rounded-full border border-line text-ink-faint lg:grid">
+            <ArrowRight className="h-4 w-4" />
           </div>
-          <ul className="mx-auto mt-10 flex max-w-lg flex-wrap items-center justify-center gap-x-2.5 gap-y-2 text-2xs uppercase tracking-[0.14em] text-ink-faint">
-            {["Leaderboard", "Duo synergy", "Records", "Player tags", "Sessions", "Season recap"].map((f, i) => (
-              <li key={f} className="flex items-center gap-2.5">
-                {i > 0 && <span className="text-primary/50">·</span>}
-                {f}
-              </li>
-            ))}
-          </ul>
+          <DemoLadder />
         </Reveal>
       </section>
-    </div>
-  );
-}
 
-/* ── clean premium backdrop: no 3D map, just controlled light ── */
+      {/* Fold 3 — three proofs */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-24">
+        <Reveal>
+          <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Two things no other site shows you.</h2>
+        </Reveal>
+        <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-6">
+          <Reveal className="sm:col-span-4" delay={0}>
+            <Proof big icon={<Swords className="h-5 w-5" />} title="Who's actually the best among us" body="A live leaderboard across Ranked, Flex, ARAM and Arena — ranked relative to the stack, with recent form and per-player tags. Your standing in this group, not the world." />
+          </Reveal>
+          <Reveal className="sm:col-span-2" delay={80}>
+            <Proof icon={<Users className="h-5 w-5" />} title="Which duo is cracked" body="Winrate together vs. apart for every pair, with honest sample sizes." />
+          </Reveal>
+        </div>
+      </section>
 
-const GRAIN =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
-
-function Backdrop() {
-  return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-[5] bg-bg">
-      {/* coral bloom behind the headline */}
-      <div className="absolute inset-0 bg-[radial-gradient(60%_45%_at_50%_-5%,oklch(var(--primary)/0.22),transparent_65%)]" />
-      {/* gold counter-glow, low and off-center */}
-      <div className="absolute inset-0 bg-[radial-gradient(45%_40%_at_78%_60%,oklch(var(--gold)/0.1),transparent_60%)]" />
-      {/* edge vignette for depth */}
-      <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_35%,transparent_55%,oklch(0_0_0/0.45))]" />
-      {/* film grain */}
-      <div className="absolute inset-0 opacity-[0.05] mix-blend-overlay" style={{ backgroundImage: GRAIN }} />
-    </div>
-  );
-}
-
-/* ── the product shot: a faithful, static StackGG dashboard in an app window ── */
-
-type Row = {
-  name: string;
-  champ: string;
-  tier: string;
-  wr: number;
-  form: ("W" | "L")[];
-  tags: { label: string; tone: "flex" | "shame" | "neutral" }[];
-};
-
-const ROWS: Row[] = [
-  { name: "Sofía", champ: "MissFortune", tier: "Diamond", wr: 0.67, form: ["W", "W", "L", "W", "W"], tags: [{ label: "Duo Demon", tone: "flex" }, { label: "Lane Bully", tone: "neutral" }] },
-  { name: "Mateo", champ: "Leona", tier: "Platinum", wr: 0.58, form: ["W", "L", "W", "W", "L"], tags: [{ label: "Vision Nerd", tone: "neutral" }] },
-  { name: "Drei", champ: "LeeSin", tier: "Platinum", wr: 0.52, form: ["L", "W", "W", "L", "W"], tags: [{ label: "Coinflip", tone: "shame" }] },
-  { name: "Kasia", champ: "Lux", tier: "Gold", wr: 0.44, form: ["L", "L", "W", "L", "W"], tags: [{ label: "Ping Menace", tone: "shame" }] },
-  { name: "Nael", champ: "Yasuo", tier: "Gold", wr: 0.41, form: ["L", "W", "L", "L", "W"], tags: [{ label: "0/10 Power Spike", tone: "shame" }] },
-];
-
-const TAG_TONE: Record<"flex" | "shame" | "neutral", string> = {
-  flex: "bg-gold/12 text-gold ring-gold/30",
-  shame: "bg-loss/12 text-loss ring-loss/25",
-  neutral: "bg-primary/12 text-primary ring-primary/30",
-};
-
-function ChampAvatar({ champ, size = 28, framed = false }: { champ: string; size?: number; framed?: boolean }) {
-  return (
-    <span
-      className={`relative inline-block shrink-0 overflow-hidden rounded-full ${framed ? "ring-2 ring-gold/60" : "ring-1 ring-line/70"}`}
-      style={{ width: size, height: size }}
-    >
-      <Image src={champIcon(champ)} alt={champName(champ)} fill sizes={`${size}px`} className="scale-110 object-cover" unoptimized />
-    </span>
-  );
-}
-
-function DashboardShot() {
-  return (
-    <div className="[perspective:2200px]">
-      <div className="[transform:rotateX(7deg)] [mask-image:linear-gradient(to_bottom,black_72%,transparent)] motion-reduce:[transform:none]">
-        <Frame size="lg" className="shadow-[0_40px_120px_-30px_oklch(0_0_0/0.7)]">
-          {/* window chrome */}
-          <div className="flex items-center justify-between gap-3 border-b border-line/50 px-5 py-3.5">
-            <div className="flex items-center gap-2.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-win/80" />
-              <span className="font-display text-lg font-bold tracking-tight">The Bot Lane Diff</span>
-              <span className="hidden text-2xs text-ink-faint sm:inline">5 members · 1,208 shared games</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="flex -space-x-2">
-                {ROWS.slice(0, 4).map((r) => (
-                  <ChampAvatar key={r.name} champ={r.champ} size={24} />
-                ))}
-              </span>
-              <span className="notch notch-sm hidden bg-primary/15 px-3 py-1.5 text-2xs font-semibold text-primary sm:inline">Invite</span>
-            </div>
-          </div>
-
-          {/* stat rail */}
-          <div className="grid grid-cols-3 gap-px border-b border-line/50 bg-line/40">
-            <StatCell icon={<Users2 className="h-3.5 w-3.5" />} label="5-stack winrate" value="61%" note="23 full-stack games" accent />
-            <StatCell icon={<Swords className="h-3.5 w-3.5" />} label="Best duo" value="71%" note="Sofía + Mateo · 41g" />
-            <StatCell icon={<TrendingUp className="h-3.5 w-3.5" />} label="Games this week" value="34" note="1,208 all-time" />
-          </div>
-
-          {/* leaderboard */}
-          <div className="p-3 sm:p-4">
-            <div className="mb-2.5 flex items-center justify-between px-1">
-              <span className="font-display text-sm font-bold tracking-tight">Leaderboard</span>
-              <span className="flex gap-1 text-2xs text-ink-faint">
-                <span className="text-primary">Ranked</span>
-                <span>Flex</span>
-                <span>ARAM</span>
-                <span>Arena</span>
-              </span>
-            </div>
-            <div className="space-y-1">
-              {ROWS.map((r, i) => {
-                const top = i === 0;
-                return (
-                  <div
-                    key={r.name}
-                    className={`notch notch-sm grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-3 border px-2.5 py-2 ${
-                      top ? "border-gold/40 bg-gold/[0.07]" : "border-line/60 bg-surface-2/40"
-                    }`}
-                  >
-                    <span className="grid h-6 w-6 place-items-center font-mono text-sm tnum">
-                      {top ? <Crown className="h-4 w-4 text-gold" /> : <span className="text-ink-faint">{i + 1}</span>}
-                    </span>
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <ChampAvatar champ={r.champ} framed={top} />
-                        <span className="truncate text-sm font-medium">{r.name}</span>
-                        <span className="hidden text-2xs text-ink-faint sm:inline">{r.tier}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {r.tags.map((t) => (
-                          <span
-                            key={t.label}
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase leading-none tracking-tight ring-1 ring-inset ${TAG_TONE[t.tone]}`}
-                          >
-                            {t.label}
-                          </span>
-                        ))}
-                      </div>
+      {/* Fold 4 — cold start */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-24">
+        <div className="grid items-center gap-10 lg:grid-cols-2">
+          <Reveal>
+            <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">One link. The whole squad.</h2>
+            <p className="mt-3 max-w-md text-ink-dim">Make a stack, drop the invite link in your server, and everyone adds their own Riot ID. StackGG stitches your games into one shared page — leaderboard, duos, records.</p>
+          </Reveal>
+          <Reveal delay={100}>
+            <Frame>
+              <div className="p-6">
+                <p className="mb-4 text-2xs font-medium uppercase tracking-[0.14em] text-ink-faint">Your squad, one by one</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  {["Sofía", "Mateo", "Drei", "Kasia", "Nael"].map((n, i) => (
+                    <div key={n} className="notch notch-sm flex animate-[fade-up_0.5s_both] items-center gap-2 border border-line/60 bg-surface-2/50 py-1.5 pl-1.5 pr-3.5" style={{ animationDelay: `${i * 110}ms` }}>
+                      <span className="grid h-8 w-8 place-items-center rounded-full bg-surface-3 text-2xs font-semibold text-ink-dim">{n.slice(0, 2)}</span>
+                      <span className="text-sm font-medium">{n}</span>
                     </div>
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-9 shrink-0 text-right font-mono text-sm tnum">{Math.round(r.wr * 100)}%</span>
-                      <span className="hidden w-24 sm:block">
-                        <Gauge value={r.wr} />
-                      </span>
-                      <span className="hidden lg:block">
-                        <WLPills form={r.form} />
-                      </span>
-                    </div>
+                  ))}
+                  <div className="notch notch-sm flex items-center gap-1.5 border border-dashed border-primary/50 bg-primary/10 py-1.5 pl-3 pr-3.5 text-primary">
+                    <Plus className="h-4 w-4" />
+                    <span className="text-sm font-semibold">invite link</span>
                   </div>
-                );
-              })}
+                </div>
+              </div>
+            </Frame>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* Fold 5 — close */}
+      <section className="mx-auto max-w-6xl px-4 pb-24 pt-4 sm:px-6">
+        <Reveal>
+          <Frame tone="gold">
+            <div className="relative px-6 py-12 text-center sm:px-12">
+              <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Start the argument.</h2>
+              <p className="mx-auto mt-3 max-w-md text-ink-dim">Drop in your Riot ID, make a stack page, and find out who&apos;s carrying whom.</p>
+              <div className="mx-auto mt-6 max-w-xl">
+                <RiotIdForm />
+              </div>
+              <Link href="/stack/new" className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink-dim transition-colors hover:text-ink">
+                or create a stack directly <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
-          </div>
-        </Frame>
-      </div>
-    </div>
+          </Frame>
+        </Reveal>
+      </section>
+    </>
   );
 }
 
-function StatCell({
-  icon,
-  label,
-  value,
-  note,
-  accent = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  note: string;
-  accent?: boolean;
-}) {
+function Proof({ icon, title, body, big = false }: { icon: React.ReactNode; title: string; body: string; big?: boolean }) {
   return (
-    <div className="bg-bg/70 px-4 py-3.5 backdrop-blur-md">
-      <div className="flex items-center gap-1.5 text-2xs font-medium uppercase tracking-[0.12em] text-ink-faint">
-        <span className={accent ? "text-primary" : "text-ink-faint"}>{icon}</span>
-        <span className="truncate">{label}</span>
+    <Frame className="h-full">
+      <div className="flex h-full flex-col p-5">
+        <span className="notch notch-sm grid h-9 w-9 place-items-center bg-primary/15 text-primary">{icon}</span>
+        <h3 className={`mt-4 font-semibold tracking-tight ${big ? "text-xl" : "text-base"}`}>{title}</h3>
+        <p className="mt-2 text-sm text-ink-dim">{body}</p>
       </div>
-      <div className={`mt-1.5 font-display text-2xl font-bold leading-none tnum sm:text-3xl ${accent ? "text-primary" : ""}`}>{value}</div>
-      <div className="mt-1.5 truncate text-2xs text-ink-faint">{note}</div>
-    </div>
+    </Frame>
+  );
+}
+
+const DEMO = [
+  { name: "Sofía", tier: "Diamond", wr: 0.67, form: ["W", "W", "L", "W", "W"], vs: "+12pp", up: true },
+  { name: "Mateo", tier: "Platinum", wr: 0.58, form: ["W", "L", "W", "W", "L"], vs: "+3pp", up: true },
+  { name: "Drei", tier: "Platinum", wr: 0.52, form: ["L", "W", "W", "L", "W"], vs: "−1pp", up: false },
+  { name: "Kasia", tier: "Gold", wr: 0.44, form: ["L", "L", "W", "L", "W"], vs: "−9pp", up: false },
+] as const;
+
+function DemoLadder() {
+  return (
+    <Frame size="lg" className="w-full">
+      <div className="flex items-center justify-between border-b border-line/50 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-win" />
+          <span className="text-sm font-semibold">The Bot Lane Diff</span>
+        </div>
+        <span className="text-2xs text-ink-faint tnum">312 shared games</span>
+      </div>
+      <div className="divide-y divide-line/40">
+        {DEMO.map((r, i) => (
+          <div key={r.name} className="grid grid-cols-[1.5rem_1fr_auto] items-center gap-3 px-4 py-2.5">
+            <span className={`text-center font-mono text-sm ${i === 0 ? "text-gold" : "text-ink-faint"}`}>{i === 0 ? <Crown className="mx-auto h-4 w-4" /> : i + 1}</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-surface-3 text-2xs font-semibold text-ink-dim">{r.name.slice(0, 2)}</span>
+              <span className="truncate text-sm font-medium">{r.name}</span>
+              <span className="text-2xs text-ink-faint">{r.tier}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="hidden w-24 sm:block">
+                <Gauge value={r.wr} />
+              </div>
+              <span className="w-10 text-right font-mono text-sm tnum">{Math.round(r.wr * 100)}%</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Frame>
   );
 }

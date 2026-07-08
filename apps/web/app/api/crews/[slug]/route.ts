@@ -13,7 +13,6 @@ async function requireOwner(slug: string) {
   return { crew };
 }
 
-// Rename is owner-only. Dashboard layout lives at /api/crews/[slug]/layout (member-gated).
 const PatchBody = z.object({ name: z.string().min(1).max(60) });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ slug: string }> }) {

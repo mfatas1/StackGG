@@ -84,16 +84,11 @@ const num = (n: number) => Math.round(n).toLocaleString("en-US");
 export async function getCrewTags(
   client: Queryable,
   puuids: string[],
-  opts: { minZ?: number; cap?: number; since?: Date | null } = {},
+  opts: { minZ?: number; cap?: number } = {},
 ): Promise<Record<string, PlayerTag[]>> {
   if (puuids.length === 0) return {};
   const minZ = opts.minZ ?? MIN_Z;
   const cap = opts.cap ?? CAP_PER_PLAYER;
-  // Optional time window (recap "week"/"season" cuts). $2 is the lower bound when set; the
-  // clause is a no-op otherwise so all-time stays the default.
-  const since = opts.since ?? null;
-  const sinceClause = since ? `AND m.game_start >= $2` : "";
-  const params = (since ? [puuids, since] : [puuids]) as unknown[];
 
   const rows = await query<Record<string, string>>(
     `SELECT mp.puuid,
@@ -116,9 +111,9 @@ export async function getCrewTags(
        avg(m.game_duration) AS avg_dur,
        stddev_samp((mp.kills + mp.assists)::float / GREATEST(mp.deaths, 1)) AS kda_sd
      FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id AND m.game_duration >= 300
-     WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR} ${sinceClause}
+     WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR}
      GROUP BY mp.puuid`,
-    params,
+    [puuids],
     client,
   );
 
@@ -164,11 +159,11 @@ export async function getCrewTags(
            row_number() OVER (PARTITION BY mp.puuid ORDER BY m.game_start)
            - row_number() OVER (PARTITION BY mp.puuid, mp.win ORDER BY m.game_start) AS grp
          FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id AND m.game_duration >= 300
-         WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR} ${sinceClause}
+         WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR}
        ),
        runs AS (SELECT puuid, count(*) AS streak FROM seq WHERE win = ${won ? "true" : "false"} GROUP BY puuid, grp)
        SELECT puuid, max(streak)::text AS streak FROM runs GROUP BY puuid`,
-      params,
+      [puuids],
       client,
     );
   const winStreak = new Map((await streakRows(true)).map((r) => [r.puuid, Number(r.streak)]));
@@ -181,13 +176,13 @@ export async function getCrewTags(
        SELECT mp.puuid, mp.win,
          row_number() OVER (PARTITION BY mp.puuid ORDER BY m.game_start DESC) AS rn
        FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id AND m.game_duration >= 300
-       WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR} ${sinceClause}
+       WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR}
      )
      SELECT puuid,
        count(*) FILTER (WHERE rn <= ${RECENT_N}) AS rg,
        count(*) FILTER (WHERE rn <= ${RECENT_N} AND win) AS rw
      FROM recent GROUP BY puuid`,
-    params,
+    [puuids],
     client,
   );
   const recentForm = new Map(recentRows.map((r) => [r.puuid, { games: Number(r.rg), wins: Number(r.rw) }]));
@@ -196,9 +191,9 @@ export async function getCrewTags(
   const champRows = await query<{ puuid: string; champion_name: string; g: string; w: string }>(
     `SELECT mp.puuid, mp.champion_name, count(*) AS g, count(*) FILTER (WHERE mp.win) AS w
      FROM match_participants mp JOIN matches m ON m.match_id = mp.match_id AND m.game_duration >= 300
-     WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR} ${sinceClause}
+     WHERE mp.puuid = ANY($1) AND m.queue_id IN ${SR}
      GROUP BY mp.puuid, mp.champion_name`,
-    params,
+    [puuids],
     client,
   );
   const champByPlayer = new Map<string, { name: string; g: number; w: number }[]>();

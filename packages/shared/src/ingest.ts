@@ -22,17 +22,6 @@ export function seasonStartDays(now: number = Date.now()): number {
   return Math.max(1, Math.ceil((now - start) / DAY_MS));
 }
 
-/** The current season's start as a Date — the lower bound for the season recap window. */
-export function seasonStartDate(): Date {
-  const start = Date.parse(SEASON_START);
-  return new Date(Number.isNaN(start) ? Date.now() - 90 * DAY_MS : start);
-}
-
-/** Human label for the current season (e.g. "Season 2026"). */
-export function seasonLabel(): string {
-  return `Season ${seasonStartDate().getUTCFullYear()}`;
-}
-
 export interface BackfillOptions {
   puuid: string;
   platform: string;

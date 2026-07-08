@@ -14,11 +14,11 @@ const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["500", "600"], variab
 
 const siteUrl = SITE_URL;
 const tagline =
-  "Your whole squad's League on one page. A shared dashboard for your League friend group: cross-mode leaderboard, duo synergy, records and playstyle tags. op.gg is about you. StackGG is about the group.";
+  "op.gg tells you how you play. StackGG tells you how your group plays together. A shared stack page for your League squad, rendered inside the Rift.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: { default: "StackGG: your whole squad's League, on one page", template: "%s · StackGG" },
+  title: { default: "StackGG — settle it, as a stack", template: "%s — StackGG" },
   description: tagline,
   applicationName: "StackGG",
   keywords: [
@@ -36,12 +36,12 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "StackGG",
     url: siteUrl,
-    title: "StackGG: your whole squad's League, on one page",
+    title: "StackGG — settle it, as a stack",
     description: tagline,
   },
   twitter: {
     card: "summary_large_image",
-    title: "StackGG: your whole squad's League, on one page",
+    title: "StackGG — settle it, as a stack",
     description: tagline,
   },
   // Public marketing surfaces are indexable; private/dynamic routes opt out via their

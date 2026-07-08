@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 // Shown when a StackGG link is shared (Discord, X, iMessage, search previews).
-export const alt = "StackGG: your whole squad's League, on one page";
+export const alt = "StackGG — settle it, as a stack";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -25,10 +25,10 @@ export default function OgImage() {
           ⚔ STACKGG
         </div>
         <div style={{ display: "flex", fontSize: 84, fontWeight: 800, marginTop: 24, lineHeight: 1.05 }}>
-          Your whole squad&apos;s League. On one page.
+          Settle it, as a stack.
         </div>
         <div style={{ display: "flex", fontSize: 34, marginTop: 28, color: "#c9bfa6", maxWidth: 900, lineHeight: 1.3 }}>
-          op.gg is about you. StackGG is about the group.
+          op.gg shows how you play. StackGG shows how your League squad plays together — who carries, who ints, settled.
         </div>
         <div style={{ display: "flex", marginTop: 44, fontSize: 28, color: "#8a93a8" }}>stackgg.app</div>
       </div>
