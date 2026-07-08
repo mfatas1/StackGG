@@ -30,3 +30,8 @@ PRODUCT.md
 DESIGN.md
 CLAUDE.md
 FRONTEND_PLAN.md
+docs/
+
+# raw screen recordings (source for README media; too large for git)
+*.mov
+*.mp4
