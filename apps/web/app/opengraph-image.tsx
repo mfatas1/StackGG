@@ -17,13 +17,15 @@ const MUTED = "#6c6553";
 const TEAL = "#1f7a86";
 const GOLD = "#b8892f";
 
-type Font = { name: string; data: ArrayBuffer; weight: number; style: "normal" };
+// next/og's FontOptions.weight is a fixed union, not `number`.
+type Weight = 400 | 500 | 600 | 700 | 800;
+type Font = { name: string; data: ArrayBuffer; weight: Weight; style: "normal" };
 
 // Fetch a Google font the site uses (Cinzel display, Hanken Grotesk sans) as a static TTF
 // for Satori. The full font is loaded (NOT the &text= subset) — subset fonts get their glyph
 // IDs remapped and Satori then renders the wrong glyphs. Wrapped so a font-CDN hiccup degrades
 // gracefully (serif/sans fallback) instead of failing the whole image.
-async function loadFont(family: string, weight: number): Promise<Font[]> {
+async function loadFont(family: string, weight: Weight): Promise<Font[]> {
   try {
     const url = `https://fonts.googleapis.com/css2?family=${family.replace(/ /g, "+")}:wght@${weight}`;
     // A UA without woff2 support makes Google serve a parseable TTF (Satori can't read woff2).
