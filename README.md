@@ -74,7 +74,9 @@ A Next.js 15 + TypeScript monorepo over Postgres:
   and polls every ~30 min, deduplicating shared games (the norm for a friend group).
 - **`packages/shared`** — zod contracts, DB types, fixtures, and the single rate-limited
   `RiotClient`. Every Riot call goes through a **Postgres-coordinated token bucket**
-  (20 req/s · 100 req/2min) so limits hold *globally* across web and worker.
+  (20 req/s · 100 req/2min) so limits hold *globally* across web and worker. These are the
+  limits of a **personal API key** (non-expiring, dev-tier); a Riot production-key application
+  is in progress.
 - **`packages/stats`** — pure stat computations (leaderboard, synergy, records, tags): DB rows
   in, numbers out, unit-tested against fixtures with hand-computed expected values.
 
@@ -93,7 +95,7 @@ same basis op.gg operates on. Queues covered: 420 solo, 440 flex, 450 ARAM, 1700
 | M1 skeleton | Monorepo scaffold, schema, shared contracts, rate-limited Riot client, backfill job | ✅ done |
 | M2 crew core | Auth, crew create / join / invite, dashboard with real data | ✅ done |
 | M3 polish | Player snapshot, records / awards, flex role stats, playstyle tags, match page | ✅ done |
-| M4 public | Deploy, legal disclaimer, production Riot key, share beyond friends | ✅ live at [stackgg.app](https://stackgg.app) |
+| M4 public | Deploy, legal disclaimer, personal API key, share beyond friends | ✅ live at [stackgg.app](https://stackgg.app) |
 | v2 | Discord webhook digest → bot, RSO login, crew-vs-crew, other Riot titles | planned |
 
 ## Running locally
